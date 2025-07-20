@@ -85,8 +85,6 @@ y_test=np.asarray(final_combined_dataset['test']['label']).astype(np.float32)
 word_input = Input(shape=(50))
 time_stamps = Input(shape=(50, 2))
 
-# Define embedding layer
-
 # Embed word and pos inputs
 word_embedded = embedding_layer(word_input)
 

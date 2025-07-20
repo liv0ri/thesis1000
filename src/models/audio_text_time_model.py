@@ -10,32 +10,15 @@ import matplotlib.pyplot as plt
 import random
 import os
 import torch
-import os
-
-import matplotlib.pyplot as plt
-import numpy as np
-import pandas as pd
-
-import tensorflow as tf
 from gensim.models.keyedvectors import Word2VecKeyedVectors
-import numpy as np
 import tensorflow_hub as hub
-
-import tensorflow as tf
 from transformers import TFAutoModel
-
 from keras.models import Sequential
-
-# import word2vec vectors
+import word2vec as vectors
 from gensim.models import KeyedVectors
-
 import pickle
-# Concatenate audio, text and time models
-from tensorflow.keras.layers import Reshape, RepeatVector, Concatenate
-
-# Add an embedding layer to the text and time model
+from tensorflow.keras.layers import Reshape, RepeatVector, Concatenate, Input, Embedding, Concatenate, LSTM, Dense
 from tensorflow.keras.models import Model
-from tensorflow.keras.layers import Input, Embedding, Concatenate, Reshape, LSTM, Dense
 
 # Load the pre-trained model using the Hugging Face interface
 model_checkpoint = "facebook/wav2vec2-base"
@@ -47,16 +30,13 @@ input_values = tf.keras.Input(shape=(16000,), dtype=tf.float32)
 # Pass the inputs through the Wav2Vec model
 wav2vec_output = huggingface_model(input_values)
 
-
 # Create the TensorFlow functional API model
 audio_model = tf.keras.Model(inputs=input_values, outputs=wav2vec_output)
 
 # Print the model summary
 audio_model.summary()
 
-
 word2vec_vectors = KeyedVectors.load("/content/drive/MyDrive/Colab Notebooks/dementia/English/dementia/English/Pitt/word2vec_embeddings/word2vec.wordvectors", mmap='r')
-
 
 # Save the vocabulary dictionary
 with open('/content/drive/MyDrive/Colab Notebooks/dementia/English/dementia/English/Pitt/final_combined_data_original_augmented/vocab_dict.pkl', 'wb') as fp:

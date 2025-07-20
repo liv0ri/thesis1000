@@ -1,9 +1,7 @@
-# Build the audio model
 import tensorflow as tf
 from transformers import TFAutoModel
 from tensorflow.keras import layers
 from tensorflow.keras.layers import Dense
-import torch
 import numpy as np
 
 # Dummy audio and labels
