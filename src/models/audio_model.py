@@ -1,8 +1,11 @@
+# DONE
+
 import tensorflow as tf
-from transformers import TFAutoModel
 from tensorflow.keras import layers
 from tensorflow.keras.layers import Dense
 import numpy as np
+from wav2vec_feature_extractor import Wav2VecFeatureExtractor
+import os
 
 # Dummy audio and labels
 audio_train = np.random.randn(10, 16000).astype(np.float32)
@@ -37,15 +40,6 @@ model_checkpoint = "facebook/wav2vec2-base"
 # # Reshape word_model output to match the shape of audio_model output
 # audio_model_output = layers.GlobalAveragePooling1D()(wav2vec_output[1])
 
-class Wav2VecFeatureExtractor(tf.keras.layers.Layer):
-    def __init__(self, model_checkpoint):
-        super().__init__()
-        self.wav2vec = TFAutoModel.from_pretrained(model_checkpoint, trainable=False, from_pt=True)
-
-    def call(self, inputs):
-        outputs = self.wav2vec(inputs)
-        return outputs.last_hidden_state  # or .pooler_output depending on what you need
-
 input_values = tf.keras.Input(shape=(16000,), dtype=tf.float32)
 wav2vec_features = Wav2VecFeatureExtractor(model_checkpoint)(input_values)
 
@@ -73,3 +67,6 @@ audio_model.fit(audio_train, y_train,
 
 # Evaluate the audio model
 audio_model.evaluate(audio_test, y_test)
+
+# Save the model to the models directory
+audio_model.save(os.path.join("models", "audio_model.keras"))

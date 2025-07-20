@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+*.ipynb_checkpoints
+
+# Model checkpoints and logs
+models/
+*.keras
+*.h5
+*.ckpt
+*.pb
+*.tflite
+logs/
+
+# PyTorch cache
+*.pt
+*.pth
+
+# Mac & Linux
+.DS_Store
+
+# Windows
+Thumbs.db
