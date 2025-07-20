@@ -37,21 +37,14 @@ vocab_size = 1000
 embedding_dim = 300
 embedding_layer = Embedding(input_dim=vocab_size, output_dim=embedding_dim, input_length=50, trainable=False)
 
-# Word and time inputs
-word_input = Input(shape=(50,), name='word_input')
+# Time inputs
 time_stamps = Input(shape=(50, 2), name='time_input')
-
-# Embed word and pos inputs
-word_embedded = embedding_layer(word_input)
-
-# Concatenate word and pos embeddings
-concatenated = Concatenate()([word_embedded, time_stamps])
 
 # Apply LSTM layer
 lstm_output = LSTM(16, dropout=0.2, recurrent_dropout=0.2)(time_stamps)
 
-# Word-time model
-time_model = tf.keras.Model(inputs=[word_input, time_stamps], outputs=lstm_output, name='time_model')
+# Time model
+time_model = tf.keras.Model(inputs=time_stamps, outputs=lstm_output, name='time_model')
 
 # Print the model summary
 time_model.summary()
@@ -72,26 +65,24 @@ callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss',
 
 # Dummy data
 audio_train = np.random.randn(10, 16000).astype(np.float32)
-word_train = np.random.randint(0, vocab_size, size=(10, 50))
 time_train = np.random.randn(10, 50, 2).astype(np.float32)
 y_train = np.random.randint(0, 2, size=(10, 1))
 
 audio_val = np.random.randn(2, 16000).astype(np.float32)
-word_val = np.random.randint(0, vocab_size, size=(2, 50))
 time_val = np.random.randn(2, 50, 2).astype(np.float32)
 y_val = np.random.randint(0, 2, size=(2, 1))
 
 # Train
-audio_time_model.fit([audio_train, [word_train, time_train]], y_train,
+audio_time_model.fit([audio_train, time_train], y_train,
                    epochs=50, batch_size=16,
- validation_data=([audio_val, [word_val, time_val]], y_val),
+validation_data=([audio_val, time_val], y_val),
                    callbacks=[callback])
 
 # Evaluate
-audio_time_model.evaluate([audio_val, [word_val, time_val]], y_val)
+audio_time_model.evaluate([audio_val, time_val], y_val)
 
 # Create the 'models' directory if it doesn't exist
 os.makedirs("models", exist_ok=True)
 
 # Save the model to the folder
-audio_time_model.save(os.path.join("models", "audio_word_time_model.keras"))
+audio_time_model.save(os.path.join("models", "audio_time_model.keras"))
