@@ -25,6 +25,7 @@ y_test = np.random.randint(0, 2, size=(2, 1))
 # Load the pre-trained model using the Hugging Face interface
 model_checkpoint = "facebook/wav2vec2-base"
 
+# OLD CODE THAT WAS CHANGED
 # huggingface_model = TFAutoModel.from_pretrained(model_checkpoint, trainable=False, from_pt=True)
 
 # # Define the inputs to the model
