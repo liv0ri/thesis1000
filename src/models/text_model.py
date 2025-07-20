@@ -1,7 +1,10 @@
 from keras.layers import Dense, Flatten, LSTM, Conv1D, MaxPooling1D, Dropout, Activation, Embedding, Input
-
 from keras.models import Sequential
 from gensim.models import KeyedVectors
+from tensorflow.keras.models import Model
+#from tensorflow.keras.layers import Input, Embedding, Concatenate, Reshape, LSTM, Dense
+import tensorflow as tf
+
 word2vec_vectors = KeyedVectors.load("/content/drive/MyDrive/Colab_Notebooks/dementia/English/dementia/English/Pitt/word2vec_embeddings/word2vec.wordvectors")
 
 vocab = tokenizer.word_index
@@ -14,11 +17,8 @@ embedding_layer = Embedding(input_dim=len(vocab) + 1,
                                 input_length=50,
                                 trainable=False)
 
-from tensorflow.keras.models import Model
-#from tensorflow.keras.layers import Input, Embedding, Concatenate, Reshape, LSTM, Dense
 # Define input layers
 word_input = Input(shape=(50))
-
 # Define embedding layer
 
 # Embed word and pos inputs
@@ -53,5 +53,4 @@ model0.evaluate(word_test, y_test)
 ## Fit the model
 model0.save("/content/drive/MyDrive/Colab_Notebooks/dementia/English/Pitt-xml/dementia_lstm_model.h5")
 
-import tensorflow as tf
 model = tf.keras.models.load_model('/content/drive/MyDrive/Colab_Notebooks/dementia/English/dementia/English/Pitt/trained_models_shorts_augmented/word')

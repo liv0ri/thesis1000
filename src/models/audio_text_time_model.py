@@ -1,4 +1,3 @@
-# import libaries
 import io
 import re
 import string
@@ -11,7 +10,6 @@ import matplotlib.pyplot as plt
 import random
 import os
 import torch
-#import pacakges
 import os
 
 import matplotlib.pyplot as plt
@@ -32,6 +30,12 @@ from keras.models import Sequential
 from gensim.models import KeyedVectors
 
 import pickle
+# Concatenate audio, text and time models
+from tensorflow.keras.layers import Reshape, RepeatVector, Concatenate
+
+# Add an embedding layer to the text and time model
+from tensorflow.keras.models import Model
+from tensorflow.keras.layers import Input, Embedding, Concatenate, Reshape, LSTM, Dense
 
 # Load the pre-trained model using the Hugging Face interface
 model_checkpoint = "facebook/wav2vec2-base"
@@ -60,7 +64,6 @@ with open('/content/drive/MyDrive/Colab Notebooks/dementia/English/dementia/Engl
     print('dictionary saved successfully to file')
 
 # Import the vocabulary dictionary
-import pickle
 with open('/content/drive/MyDrive/Colab Notebooks/dementia/English/dementia/English/Pitt/final_combined_data_original_augmented/vocab_dict.pkl', 'rb') as handle:
     data = handle.read()
 vocab = pickle.loads(data)
@@ -85,12 +88,8 @@ def get_weight_matrix():
         i=i+1
     return weight_matrix
 
-import numpy as np
 embedding_vectors = get_weight_matrix()
 
-# Add an embedding layer to the text and time model
-from tensorflow.keras.models import Model
-from tensorflow.keras.layers import Input, Embedding, Concatenate, Reshape, LSTM, Dense
 embedding_layer = Embedding(input_dim=len(vocab) + 1,
                                 output_dim=300,
                                 weights=[embedding_vectors],
@@ -102,11 +101,8 @@ embedding_layer = Embedding(input_dim=len(vocab) + 1,
 word_input = Input(shape=(50))
 time_stamps = Input(shape=(50, 2))
 
-# Define embedding layer
-
 # Embed word and pos inputs
 word_embedded = embedding_layer(word_input)
-
 
 # Concatenate word and pos embeddings
 concatenated = Concatenate()([word_embedded, time_stamps])
@@ -129,8 +125,6 @@ word_model = Model(inputs=[word_input, time_stamps], outputs=lstm_output, name='
 # Print the model summary
 word_model.summary()
 
-# Concatenate audio, text and time models
-from tensorflow.keras.layers import Reshape, RepeatVector, Concatenate
 # Reshape word_model output to match the shape of audio_model output
 audio_model_output = layers.GlobalAveragePooling1D()(audio_model.output[1])
 # Drop-out layer before the final Classification-Head

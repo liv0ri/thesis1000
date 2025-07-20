@@ -1,4 +1,3 @@
-# import libaries
 import io
 import re
 import string
@@ -11,21 +10,11 @@ import matplotlib.pyplot as plt
 import random
 import os
 import torch
-#import pacakges
 import os
-
 from IPython import display
-import matplotlib.pyplot as plt
-import numpy as np
-import pandas as pd
-
-import tensorflow as tf
-
 from keras.layers import Dense, Flatten, LSTM, Conv1D, MaxPooling1D, Dropout, Activation, Embedding, Input, TimeDistributed, GlobalAveragePooling2D, ConvLSTM2D, Reshape, Concatenate
-
-# Build the audio model
-import tensorflow as tf
 from transformers import TFAutoModel
+from tensorflow.keras.layers import Reshape, RepeatVector, Concatenate
 
 # Load the pre-trained model using the Hugging Face interface
 model_checkpoint = "facebook/wav2vec2-base"
@@ -48,11 +37,8 @@ audio_model.summary()
 # Define input layers
 time_stamps = Input(shape=(50, 2))
 
-# Define embedding layer
-
 # Embed word and pos inputs
 word_embedded = embedding_layer(word_input)
-
 
 # Concatenate word and pos embeddings
 concatenated = Concatenate()([word_embedded, time_stamps])
@@ -75,8 +61,6 @@ model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy']
 # Print the model summary
 time_model.summary()
 
-# Concatenante audio and time models
-from tensorflow.keras.layers import Reshape, RepeatVector, Concatenate
 # Reshape word_model output to match the shape of audio_model output
 audio_model_output = layers.GlobalAveragePooling1D()(audio_model.output[1])
 # Drop-out layer before the final Classification-Head

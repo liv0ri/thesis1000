@@ -2,8 +2,6 @@
 import io
 import re
 import string
-import numpy as np
-import pandas as pd
 from gensim.models import Word2Vec
 import tensorflow as tf
 from tensorflow.keras import layers
@@ -11,32 +9,26 @@ import matplotlib.pyplot as plt
 import random
 import os
 import torch
-#import pacakges
-import os
-
 from IPython import display
-import matplotlib.pyplot as plt
-import numpy as np
 import pandas as pd
-
-import tensorflow as tf
 import tensorflow_hub as hub
-#import tensorflow_io as tfio
-
-# Build the audio model
-import tensorflow as tf
 from transformers import TFAutoModel
-
 from keras.models import Sequential
-
-# Load pretrained word2vec embeddings
 from gensim.models import KeyedVectors
+from tensorflow.keras.models import Model
+from tensorflow.keras.layers import Input, Embedding, Concatenate, Reshape, LSTM, Dense
+from tensorflow.keras.layers import Reshape, RepeatVector, Concatenate
+from gensim.models.keyedvectors import Word2VecKeyedVectors
+import numpy as np
+import pickle
+
+
 word2vec_vectors = KeyedVectors.load("/content/drive/MyDrive/Colab Notebooks/dementia/English/dementia/English/Pitt/word2vec_embeddings/word2vec.wordvectors", mmap='r')
 # Load the vocabulary dictionary
-import pickle
 with open('/content/drive/MyDrive/Colab Notebooks/dementia/English/dementia/English/Pitt/final_combined_data_original_augmented/vocab_dict.pkl', 'rb') as handle:
     data = handle.read()
 vocab = pickle.loads(data)
+#vocab = tokenizer.word_index
 
 # Load the pre-trained model using the Hugging Face interface
 model_checkpoint = "facebook/wav2vec2-base"
@@ -54,10 +46,6 @@ audio_model = tf.keras.Model(inputs=input_values, outputs=wav2vec_output)
 # Print the model summary
 audio_model.summary()
 
-# Get the word embeddings for each word
-#vocab = tokenizer.word_index
-from gensim.models.keyedvectors import Word2VecKeyedVectors
-import numpy as np
 def get_weight_matrix():
     # define weight matrix dimensions with all 0
     weight_matrix = np.zeros((len(vocab)+1, word2vec_vectors.vector_size))
@@ -83,19 +71,11 @@ embedding_layer = Embedding(input_dim=len(vocab) + 1,
                                 input_length=50,
                                 trainable=False)
 
-# Build word and text models
-from tensorflow.keras.models import Model
-from tensorflow.keras.layers import Input, Embedding, Concatenate, Reshape, LSTM, Dense
-
 # Define input layers
 word_input = Input(shape=(50))
 
-
-# Define embedding layer
-
 # Embed word and pos inputs
 word_embedded = embedding_layer(word_input)
-
 
 # Reshape the concatenated tensor
 #reshaped = Reshape((-1, 16))(concatenated)
@@ -115,8 +95,6 @@ word_model = Model(inputs=word_input, outputs=lstm_output, name='word_model')
 # Print the model summary
 word_model.summary()
 
-# Concatenate audio and text, time models
-from tensorflow.keras.layers import Reshape, RepeatVector, Concatenate
 # Reshape word_model output to match the shape of audio_model output
 audio_model_output = layers.GlobalAveragePooling1D()(audio_model.output[1])
 # Drop-out layer before the final Classification-Head
