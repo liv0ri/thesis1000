@@ -3,32 +3,19 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.keras.layers import Input, Embedding, LSTM, Dense
 from tensorflow.keras.models import Model
-from gensim.models import KeyedVectors
+from weights import Weights
 
 # word2vec_vectors = KeyedVectors.load("/content/drive/MyDrive/Colab_Notebooks/dementia/English/dementia/English/Pitt/word2vec_embeddings/word2vec.wordvectors")
-
 # vocab = tokenizer.word_index
 
-vocab_size = 1000
-embedding_dim = 300
-
 # Dummy vocab simulating word_index (words mapped to indices)
-vocab = {f"word{i}": i for i in range(1, vocab_size + 1)}
+vocab = {f"word{i}": i for i in range(1, 1000 + 1)}
 
 # Simulate word2vec vectors: a dictionary mapping word -> random 300-dim vector
-word2vec_vectors = {word: np.random.rand(embedding_dim) for word in vocab.keys()}
+word2vec_vectors = {word: np.random.rand(300) for word in vocab.keys()}
 
-# Function to create embedding matrix
-def get_weight_matrix():
-    weight_matrix = np.zeros((len(vocab) + 1, embedding_dim))
-    for word, idx in vocab.items():
-        if word in word2vec_vectors:
-            weight_matrix[idx] = word2vec_vectors[word]
-        else:
-            weight_matrix[idx] = np.zeros(embedding_dim)
-    return weight_matrix
-
-embedding_vectors = get_weight_matrix()
+weight = Weights(vocab, word2vec_vectors)
+embedding_vectors = weight.get_weight_matrix()
 
 # Create embedding layer
 embedding_layer = Embedding(input_dim=len(vocab) + 1,
@@ -61,14 +48,14 @@ num_samples_train = 20
 num_samples_val = 5
 num_samples_test = 5
 
-# Random integers from 1 to vocab_size for each word index in sequence length 50
-word_train = np.random.randint(1, vocab_size + 1, size=(num_samples_train, 50))
+# Random integers from 1 to 1000 for each word index in sequence length 50
+word_train = np.random.randint(1, 1000 + 1, size=(num_samples_train, 50))
 y_train = np.random.randint(0, 2, size=(num_samples_train, 1))
 
-word_val = np.random.randint(1, vocab_size + 1, size=(num_samples_val, 50))
+word_val = np.random.randint(1, 1000 + 1, size=(num_samples_val, 50))
 y_val = np.random.randint(0, 2, size=(num_samples_val, 1))
 
-word_test = np.random.randint(1, vocab_size + 1, size=(num_samples_test, 50))
+word_test = np.random.randint(1, 1000 + 1, size=(num_samples_test, 50))
 y_test = np.random.randint(0, 2, size=(num_samples_test, 1))
 
 # Early stopping callback

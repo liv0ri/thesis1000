@@ -4,26 +4,22 @@ from tensorflow.keras.layers import Input, Embedding, LSTM, Dense, Dropout, Glob
 from tensorflow.keras.models import Model
 from transformers import TFAutoModel
 from wav2vec_feature_extractor import Wav2VecFeatureExtractor
-from tensorflow.keras import layers
 import os
+from weights import Weights
 
 vocab = {f"word{i}": i for i in range(1, 101)}  # dummy vocab
 
-num_train = 10
-num_val = 2
-num_test = 2
+audio_train = np.random.randn(10, 16000).astype(np.float32)
+word_train = np.random.randint(1, len(vocab) + 1, size=(10, 50))
+y_train = np.random.randint(0, 2, size=(10, 1))
 
-audio_train = np.random.randn(num_train, 16000).astype(np.float32)
-word_train = np.random.randint(1, len(vocab) + 1, size=(num_train, 50))
-y_train = np.random.randint(0, 2, size=(num_train, 1))
+audio_val = np.random.randn(2, 16000).astype(np.float32)
+word_val = np.random.randint(1, len(vocab) + 1, size=(2, 50))
+y_val = np.random.randint(0, 2, size=(2, 1))
 
-audio_val = np.random.randn(num_val, 16000).astype(np.float32)
-word_val = np.random.randint(1, len(vocab) + 1, size=(num_val, 50))
-y_val = np.random.randint(0, 2, size=(num_val, 1))
-
-audio_test = np.random.randn(num_test, 16000).astype(np.float32)
-word_test = np.random.randint(1, len(vocab) + 1, size=(num_test, 50))
-y_test = np.random.randint(0, 2, size=(num_test, 1))
+audio_test = np.random.randn(2, 16000).astype(np.float32)
+word_test = np.random.randint(1, len(vocab) + 1, size=(2, 50))
+y_test = np.random.randint(0, 2, size=(2, 1))
 
 word2vec_vectors = {key: np.random.rand(300) for key in vocab}
 # word2vec_vectors = KeyedVectors.load("/content/drive/MyDrive/Colab Notebooks/dementia/English/dementia/English/Pitt/word2vec_embeddings/word2vec.wordvectors", mmap='r')
@@ -33,41 +29,20 @@ word2vec_vectors = {key: np.random.rand(300) for key in vocab}
 # vocab = pickle.loads(data)
 # #vocab = tokenizer.word_index
 model_checkpoint = "facebook/wav2vec2-base"
-huggingface_model = TFAutoModel.from_pretrained(model_checkpoint, trainable=False, from_pt=True)
+# huggingface_model = TFAutoModel.from_pretrained(model_checkpoint, trainable=False, from_pt=True)
 
 # Define the inputs to the model
 input_values = Input(shape=(16000,), dtype=tf.float32)
 audio_features = Wav2VecFeatureExtractor(model_checkpoint)(input_values)
 
 # Create the TensorFlow functional API model
-audio_model = tf.keras.Model(inputs=input_values, outputs=audio_features)
+audio_model = Model(inputs=input_values, outputs=audio_features)
 
 # Print the model summary
 audio_model.summary()
 
-def get_weight_matrix():
-    weight_matrix = np.zeros((len(vocab)+1, 300))
-    for key, idx in vocab.items():
-        weight_matrix[idx] = word2vec_vectors.get(key, np.zeros(300))
-    return weight_matrix
-
-
-# def get_weight_matrix():
-#     # define weight matrix dimensions with all 0
-#     weight_matrix = np.zeros((len(vocab)+1, word2vec_vectors.vector_size))
-#     i=0
-#     for key in vocab.keys():
-#       if key=='OOV':
-#         continue
-#       elif key not in word2vec_vectors:
-#         i=i+1
-#         continue
-#       else:
-#         weight_matrix[i + 1] = word2vec_vectors[key]
-#         i=i+1
-#     return weight_matrix
-
-embedding_vectors = get_weight_matrix()
+weight = Weights(vocab, word2vec_vectors)
+embedding_vectors = weight.get_weight_matrix()
 
 # Create the embedding layer
 embedding_layer = Embedding(input_dim=len(vocab) + 1,
@@ -84,9 +59,6 @@ word_embedded = embedding_layer(word_input)
 # Apply LSTM layer
 lstm_output = LSTM(16, dropout=0.2, recurrent_dropout=0.2)(word_embedded)
 
-# Apply dense layer for binary classification
-# output = Dense(1, activation='sigmoid')(lstm_output)
-
 # Define the model
 word_model = Model(inputs=word_input, outputs=lstm_output, name='word_model')
 
@@ -94,9 +66,9 @@ word_model = Model(inputs=word_input, outputs=lstm_output, name='word_model')
 word_model.summary()
 
 # Reshape word_model output to match the shape of audio_model output
-audio_model_output = layers.GlobalAveragePooling1D()(audio_model.output)
+audio_model_output = GlobalAveragePooling1D()(audio_model.output)
 # Drop-out layer before the final Classification-Head
-audio_model_output = layers.Dropout(0.5) (audio_model_output)
+audio_model_output = Dropout(0.5) (audio_model_output)
 
 concatenated_output = Concatenate()([audio_model_output, word_model.output])
 # apply a FC layer and then a regression prediction on the

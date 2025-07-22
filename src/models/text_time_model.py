@@ -3,33 +3,30 @@ import tensorflow as tf
 from tensorflow.keras.layers import Input, Embedding, Concatenate, LSTM, Dense
 from tensorflow.keras.models import Model
 import os
+from weights import Weights
 
-# Simulated vocab and word2vec-like embeddings
-vocab_size = 1000
-embedding_dim = 300
+# word2vec_vectors = KeyedVectors.load("/content/drive/MyDrive/Colab_Notebooks/dementia/English/dementia/English/Pitt/word2vec_embeddings/word2vec.wordvectors", mmap='r')
 
 # Dummy vocab keys (like your vocab dict keys)
-vocab = {f"word{i}": i for i in range(1, vocab_size + 1)}
+vocab = {f"word{i}": i for i in range(1, 1000 + 1)}
+
+# import pickle
+# # save dictionary to person_data.pkl file
+# with open('/content/drive/MyDrive/Colab_Notebooks/dementia/English/dementia/English/Pitt/final_combined_data/vocab_dict.pkl', 'wb') as fp:
+#     pickle.dump(vocab, fp)
+#     print('dictionary saved successfully to file')
+# Load the vocabulary dictionary
+# import pickle
+# with open('/content/drive/MyDrive/Colab_Notebooks/dementia/English/dementia/English/Pitt/final_combined_data_original/vocab_dict.pkl', 'rb') as handle:
+#     data = handle.read()
+# vocab = pickle.loads(data)
+# vocab = tokenizer.word_index
 
 # Dummy word2vec vectors as random vectors
-word2vec_vectors = {word: np.random.rand(embedding_dim) for word in vocab.keys()}
+word2vec_vectors = {word: np.random.rand(300) for word in vocab.keys()}
 
-# Function to create embedding matrix matching your get_weight_matrix logic
-def get_weight_matrix():
-    weight_matrix = np.zeros((len(vocab) + 1, embedding_dim))
-    i = 0
-    for key in vocab.keys():
-        if key == 'OOV':
-            continue
-        elif key not in word2vec_vectors:
-            i += 1
-            continue
-        else:
-            weight_matrix[i + 1] = word2vec_vectors[key]
-            i += 1
-    return weight_matrix
-
-embedding_vectors = get_weight_matrix()
+weight = Weights(vocab, word2vec_vectors)
+embedding_vectors = weight.get_weight_matrix()
 
 # Create embedding layer
 embedding_layer = Embedding(input_dim=len(vocab) + 1,
@@ -57,7 +54,6 @@ word_input = Input(shape=(50,), name='word_input')
 
 # # Define input layers
 # word_input = Input(shape=(50))
-# time_stamps = Input(shape=(50, 2))
 time_stamps = Input(shape=(50, 2), name='time_input')
 
 # Embed word and pos inputs
@@ -84,16 +80,16 @@ num_train = 20
 num_val = 5
 num_test = 5
 
-# Random word indices in [1, vocab_size]
-word_train = np.random.randint(1, vocab_size + 1, size=(num_train, 50))
+# Random word indices in [1, 1000]
+word_train = np.random.randint(1, 1000 + 1, size=(num_train, 50))
 time_train = np.random.randn(num_train, 50, 2).astype(np.float32)
 y_train = np.random.randint(0, 2, size=(num_train, 1))
 
-word_val = np.random.randint(1, vocab_size + 1, size=(num_val, 50))
+word_val = np.random.randint(1, 1000 + 1, size=(num_val, 50))
 time_val = np.random.randn(num_val, 50, 2).astype(np.float32)
 y_val = np.random.randint(0, 2, size=(num_val, 1))
 
-word_test = np.random.randint(1, vocab_size + 1, size=(num_test, 50))
+word_test = np.random.randint(1, 1000 + 1, size=(num_test, 50))
 time_test = np.random.randn(num_test, 50, 2).astype(np.float32)
 y_test = np.random.randint(0, 2, size=(num_test, 1))
 
