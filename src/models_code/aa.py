@@ -1,66 +1,72 @@
 import os
-from PIL import Image
 import numpy as np
+import soundfile as sf
+import matplotlib.pyplot as plt
+import random
 
-base_dir = r'D:\Uni\thesis1000\thesis1000\thesis1000\diagnosis\train'
+# ===== CONFIG =====
+base_dir = r'D:\Uni\thesis1000\thesis1000\diagnosis'
+splits = ["train", "test"]
+classes = ["ad", "cn"]
 
-folders = [
-    'audio/ad',
-    'audio/cn',
-    'specto/ad',
-    'specto/cn',
-    'trans/ad',
-    'trans/cn'
-]
+sr = 16000       # sample rate
+duration = 1.0   # seconds
+seq_len = 50     # tokens per transcript
+time_feat_dim = 2
+vocab = {f"word{i}": i for i in range(1, 101)}
 
-# Create folders
-for folder in folders:
-    path = os.path.join(base_dir, folder)
-    os.makedirs(path, exist_ok=True)
+# ===== FOLDER CREATION =====
+for split in splits:
+    for c in classes:
+        os.makedirs(os.path.join(base_dir, split, "audio", c), exist_ok=True)
+        os.makedirs(os.path.join(base_dir, split, "specto", c), exist_ok=True)
+        os.makedirs(os.path.join(base_dir, split, "trans", c), exist_ok=True)
+        os.makedirs(os.path.join(base_dir, split, "time", c), exist_ok=True)
 
-# Create dummy .png images (e.g. 224x224 RGB)
-dummy_image = Image.fromarray(np.uint8(np.random.rand(224,224,3)*255))
+# ===== DATA GENERATION =====
+def generate_dummy_audio():
+    """Generate 1 second of random audio at sr Hz."""
+    return np.random.randn(int(sr)).astype(np.float32)
 
-for folder in ['audio/ad', 'audio/cn']:
-    folder_path = os.path.join(base_dir, folder)
-    for i in range(3):  # create 3 dummy images per folder
-        dummy_image.save(os.path.join(folder_path, f'dummy_{i}.png'))
+def save_spectrogram(audio, path):
+    """Generate and save a spectrogram image from audio."""
+    plt.specgram(audio, Fs=sr)
+    plt.axis('off')
+    plt.savefig(path, bbox_inches='tight', pad_inches=0)
+    plt.close()
 
-# Create dummy .txt transcript files matching image names
-for folder in ['trans/ad', 'trans/cn']:
-    folder_path = os.path.join(base_dir, folder)
-    for i in range(3):
-        with open(os.path.join(folder_path, f'dummy_{i}.txt'), 'w') as f:
-            f.write("This is a dummy transcript for testing.\n")
+def generate_transcript():
+    """Generate a random transcript of words from vocab."""
+    return " ".join(random.choice(list(vocab.keys())) for _ in range(seq_len))
 
-# Create dummy spectrogram images (same as audio here for simplicity)
-for folder in ['specto/ad', 'specto/cn']:
-    folder_path = os.path.join(base_dir, folder)
-    for i in range(3):
-        dummy_image.save(os.path.join(folder_path, f'dummy_{i}.png'))
+def generate_time_features():
+    """Generate dummy time-aligned features (seq_len, 2)."""
+    return np.random.randn(seq_len, time_feat_dim).astype(np.float32)
 
-# Create test folders and files
+# ===== MAIN LOOP =====
+for split in splits:
+    for c in classes:
+        for i in range(3):  # 3 samples per class per split
+            uid = f"{split}_{c}_{i}"
+            
+            # 1. Audio
+            audio = generate_dummy_audio()
+            audio_path = os.path.join(base_dir, split, "audio", c, f"{uid}.wav")
+            sf.write(audio_path, audio, sr)
+            
+            # 2. Spectrogram
+            spectro_path = os.path.join(base_dir, split, "specto", c, f"{uid}.png")
+            save_spectrogram(audio, spectro_path)
+            
+            # 3. Transcript
+            transcript = generate_transcript()
+            trans_path = os.path.join(base_dir, split, "trans", c, f"{uid}.txt")
+            with open(trans_path, "w") as f:
+                f.write(transcript + "\n")
+            
+            # 4. Time features
+            time_feat = generate_time_features()
+            time_path = os.path.join(base_dir, split, "time", c, f"{uid}.npy")
+            np.save(time_path, time_feat)
 
-test_audio_dir = r'D:\Uni\thesis1000\thesis1000\thesis1000\diagnosis\test-distaudio'
-os.makedirs(test_audio_dir, exist_ok=True)
-for i in range(3):
-    dummy_image.save(os.path.join(test_audio_dir, f'dummy_{i}.png'))
-
-test_specto_dir = r'D:\Uni\thesis1000\thesis1000\thesis1000\diagnosis\test-distspecto'
-os.makedirs(test_specto_dir, exist_ok=True)
-for i in range(3):
-    dummy_image.save(os.path.join(test_specto_dir, f'dummy_{i}.png'))
-
-test_trans_dir = r'D:\Uni\thesis1000\thesis1000\thesis1000\diagnosis\test-disttrans'
-os.makedirs(test_trans_dir, exist_ok=True)
-for i in range(3):
-    with open(os.path.join(test_trans_dir, f'dummy_{i}.txt'), 'w') as f:
-        f.write("This is a dummy transcript for testing.\n")
-
-test_specto_txt_dir = r'D:\Uni\thesis1000\thesis1000\thesis1000\diagnosis\test-distspecto-txt'
-os.makedirs(test_specto_txt_dir, exist_ok=True)
-for i in range(3):
-    with open(os.path.join(test_specto_txt_dir, f'dummy_{i}.txt'), 'w') as f:
-        f.write("This is a dummy transcript for testing.\n")
-
-print("Script finished")
+print("✅ Dummy multimodal dataset created successfully.")
