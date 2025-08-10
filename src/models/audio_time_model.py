@@ -18,8 +18,6 @@ audio_features = Wav2VecFeatureExtractor(model_checkpoint)(input_values)
 audio_output = GlobalAveragePooling1D()(audio_features)
 audio_output = Dropout(0.5)(audio_output)
 
-
-
 audio_model = Model(inputs=input_values, outputs=audio_output, name='audio_model')
 # Print the model summary
 audio_model.summary()
