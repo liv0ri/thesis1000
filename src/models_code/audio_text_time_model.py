@@ -123,4 +123,4 @@ combined_model.evaluate([audio_test, combined_test], y_test)
 os.makedirs("models", exist_ok=True)
 
 # Save the model to the models directory
-audio_model.save(os.path.join("models", "audio_word_time_model.keras"))
+combined_model.save(os.path.join("models", "audio_word_time_model.keras"))
