@@ -5,30 +5,18 @@ from tensorflow.keras.layers import Input, Embedding, Concatenate, LSTM, Dense, 
 from tensorflow.keras.models import Model
 from wav2vec_feature_extractor import Wav2VecFeatureExtractor
 from weights import Weights
+from utils import load_split
+import pickle
 
-vocab = {f"word{i}": i for i in range(1, 101)}
-audio_train = np.random.randn(10, 16000).astype(np.float32)
-word_train = np.random.randint(1, len(vocab), size=(10, 50))
-time_train = np.random.randn(10, 50, 2).astype(np.float32)
-y_train = np.random.randint(0, 2, size=(10, 1))
-
-audio_val = np.random.randn(2, 16000).astype(np.float32)
-word_val = np.random.randint(1, len(vocab), size=(2, 50))
-time_val = np.random.randn(2, 50, 2).astype(np.float32)
-y_val = np.random.randint(0, 2, size=(2, 1))
-
-audio_test = np.random.randn(2, 16000).astype(np.float32)
-word_test = np.random.randint(1, len(vocab), size=(2, 50))
-time_test = np.random.randn(2, 50, 2).astype(np.float32)
-y_test = np.random.randint(0, 2, size=(2, 1))
+audio_train, word_train, time_train, y_train = load_split("pitt_split/train")
+audio_val, word_val, time_val, y_val = load_split("pitt_split/val")
+audio_test, word_test, time_test, y_test = load_split("pitt_split/test")
 
 # Load the pre-trained model using the Hugging Face interface
 model_checkpoint = "facebook/wav2vec2-base"
 # Define the inputs to the model
 audio_input = Input(shape=(16000,), dtype=tf.float32)
 
-# from gensim.models import KeyedVectors
-# word2vec_vectors = KeyedVectors.load("/content/drive/MyDrive/Colab Notebooks/dementia/English/dementia/English/Pitt/word2vec_embeddings/word2vec.wordvectors", mmap='r')
 
 # huggingface_model = TFAutoModel.from_pretrained(model_checkpoint, trainable=False, from_pt=True)
 # # Pass the inputs hrough the Wav2Vec model
@@ -43,29 +31,12 @@ audio_model = Model(inputs=audio_input, outputs=audio_output, name="audio_model"
 # Print the model summary
 audio_model.summary()
 
-# word2vec_vectors = KeyedVectors.load("/content/drive/MyDrive/Colab Notebooks/dementia/English/dementia/English/Pitt/word2vec_embeddings/word2vec.wordvectors", mmap='r')
+with open(os.path.join("pitt_split", "vocab.pkl"), "rb") as f:
+    data = f.read()
+vocab = pickle.loads(data)
 
-# # Save the vocabulary dictionary
-# with open('/content/drive/MyDrive/Colab Notebooks/dementia/English/dementia/English/Pitt/final_combined_data_original_augmented/vocab_dict.pkl', 'wb') as fp:
-#     pickle.dump(vocab, fp)
-#     print('dictionary saved successfully to file')
-
-# # Import the vocabulary dictionary
-# with open('/content/drive/MyDrive/Colab Notebooks/dementia/English/dementia/English/Pitt/final_combined_data_original_augmented/vocab_dict.pkl', 'rb') as handle:
-#     data = handle.read()
-# vocab = pickle.loads(data)
-
-# vocab = tokenizer.word_index
-
-# # Get the word embeddings for each word
-# #vocab = tokenizer.word_index
-class DummyTokenizer:
-    def __init__(self, vocab):
-        self.word_index = vocab
-
-tokenizer = DummyTokenizer(vocab)
-
-word2vec_vectors = {key: np.random.rand(300) for key in vocab}
+with open("embeddings/word2vec_vectors.pkl", "rb") as f:
+    word2vec_vectors = pickle.load(f)
 
 weight = Weights(vocab, word2vec_vectors)
 

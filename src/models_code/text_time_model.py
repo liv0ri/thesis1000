@@ -4,13 +4,18 @@ from tensorflow.keras.layers import Input, Embedding, Concatenate, LSTM, Dense
 from tensorflow.keras.models import Model
 import os
 from weights import Weights
+from utils import load_split
+import pickle
 
+_, word_train, time_train, y_train = load_split("pitt_split/train", load_audio=False)
+_, word_val, time_val, y_val = load_split("pitt_split/val", load_audio=False)
+_, word_test, time_test, y_test = load_split("pitt_split/test", load_audio=False)
 # word2vec_vectors = KeyedVectors.load("/content/drive/MyDrive/Colab_Notebooks/dementia/English/dementia/English/Pitt/word2vec_embeddings/word2vec.wordvectors", mmap='r')
 
-# Dummy vocab keys (like your vocab dict keys)
-vocab = {f"word{i}": i for i in range(1, 1000 + 1)}
+with open(os.path.join("pitt_split", "vocab.pkl"), "rb") as f:
+    data = f.read()
+vocab = pickle.loads(data)
 
-# import pickle
 # # save dictionary to person_data.pkl file
 # with open('/content/drive/MyDrive/Colab_Notebooks/dementia/English/dementia/English/Pitt/final_combined_data/vocab_dict.pkl', 'wb') as fp:
 #     pickle.dump(vocab, fp)
@@ -22,8 +27,8 @@ vocab = {f"word{i}": i for i in range(1, 1000 + 1)}
 # vocab = pickle.loads(data)
 # vocab = tokenizer.word_index
 
-# Dummy word2vec vectors as random vectors
-word2vec_vectors = {word: np.random.rand(300) for word in vocab.keys()}
+with open("embeddings/word2vec_vectors.pkl", "rb") as f:
+    word2vec_vectors = pickle.load(f)
 
 weight = Weights(vocab, word2vec_vectors)
 embedding_vectors = weight.get_weight_matrix()
@@ -37,20 +42,6 @@ embedding_layer = Embedding(input_dim=len(vocab) + 1,
 
 # Define inputs
 word_input = Input(shape=(50,), name='word_input')
-
-
-# final_combined_dataset=load_from_disk('/content/drive/MyDrive/Colab_Notebooks/dementia/English/dementia/English/Pitt/final_combined_data_original')
-# final_combined_dataset=final_combined_dataset.train_test_split(test_size=0.2)
-# final_trained_dataset=final_combined_dataset['train'].train_test_split(test_size=0.2)
-# word_train = np.asarray(final_trained_dataset['train']['word']).astype(np.float32)
-# time_train = np.asarray(final_trained_dataset['train']['time_stamps']).astype(np.float32)
-# word_val = np.asarray(final_trained_dataset['test']['word']).astype(np.float32)
-# time_val = np.asarray(final_trained_dataset['test']['time_stamps']).astype(np.float32)
-# y_train=np.asarray(final_trained_dataset['train']['label']).astype(np.float32)
-# y_val=np.asarray(final_trained_dataset['test']['label']).astype(np.float32)
-# word_test=np.asarray(final_combined_dataset['test']['word']).astype(np.float32)
-# time_test=np.asarray(final_combined_dataset['test']['time_stamps']).astype(np.float32)
-# y_test=np.asarray(final_combined_dataset['test']['label']).astype(np.float32)
 
 # # Define input layers
 # word_input = Input(shape=(50))
@@ -75,23 +66,6 @@ model = Model(inputs=[word_input, time_stamps], outputs=output)
 model.compile(loss='binary_crossentropy', optimizer='adam',metrics=['accuracy', tf.keras.metrics.Precision(),tf.keras.metrics.Recall(), tf.keras.metrics.AUC()])
 
 model.summary()
-
-num_train = 20
-num_val = 5
-num_test = 5
-
-# Random word indices in [1, 1000]
-word_train = np.random.randint(1, 1000 + 1, size=(num_train, 50))
-time_train = np.random.randn(num_train, 50, 2).astype(np.float32)
-y_train = np.random.randint(0, 2, size=(num_train, 1))
-
-word_val = np.random.randint(1, 1000 + 1, size=(num_val, 50))
-time_val = np.random.randn(num_val, 50, 2).astype(np.float32)
-y_val = np.random.randint(0, 2, size=(num_val, 1))
-
-word_test = np.random.randint(1, 1000 + 1, size=(num_test, 50))
-time_test = np.random.randn(num_test, 50, 2).astype(np.float32)
-y_test = np.random.randint(0, 2, size=(num_test, 1))
 
 # Train with EarlyStopping
 callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)

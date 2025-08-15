@@ -1,28 +1,15 @@
 import tensorflow as tf
 from tensorflow.keras.layers import Input, Dense, Dropout, GlobalAveragePooling1D
 from tensorflow.keras.layers import Dense
-import numpy as np
 from tensorflow.keras.models import Model
 from wav2vec_feature_extractor import Wav2VecFeatureExtractor
 import os
+from utils import load_split
 
-# Dummy audio and labels
-audio_train = np.random.randn(10, 16000).astype(np.float32)
-y_train = np.random.randint(0, 2, size=(10, 1))
-
-audio_val = np.random.randn(2, 16000).astype(np.float32)
-y_val = np.random.randint(0, 2, size=(2, 1))
-
-audio_test = np.random.randn(2, 16000).astype(np.float32)
-y_test = np.random.randint(0, 2, size=(2, 1))
-audio_train = np.random.randn(10, 16000).astype(np.float32)
-y_train = np.random.randint(0, 2, size=(10, 1))
-
-audio_val = np.random.randn(2, 16000).astype(np.float32)
-y_val = np.random.randint(0, 2, size=(2, 1))
-
-audio_test = np.random.randn(2, 16000).astype(np.float32)
-y_test = np.random.randint(0, 2, size=(2, 1))
+# Load real Pitt data
+audio_train, _, _, y_train = load_split("pitt_split/train", load_words=False, load_times=False)
+audio_val, _, _, y_val = load_split("pitt_split/val", load_words=False, load_times=False)
+audio_test, _, _, y_test = load_split("pitt_split/test", load_words=False, load_times=False)
 
 # Load the pre-trained model using the Hugging Face interface 
 # This was used by the research paper which I found best

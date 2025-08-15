@@ -11,7 +11,8 @@ models/
 *.pb
 *.tflite
 logs/
-
+pitt_split/
+embeddings/
 # PyTorch cache
 *.pt
 *.pth

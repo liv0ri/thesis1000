@@ -4,7 +4,11 @@ import os
 from keras.layers import Dense, LSTM,  Dropout, Embedding, Input, GlobalAveragePooling1D, Concatenate
 from wav2vec_feature_extractor import Wav2VecFeatureExtractor
 from tensorflow.keras.models import Model
+from utils import load_split
 
+audio_train, _, time_train, y_train = load_split("pitt_split/train", load_words=False)
+audio_val, _, time_val, y_val = load_split("pitt_split/val", load_words=False)
+audio_test, _, time_test, y_test = load_split("pitt_split/test", load_words=False)
 
 model_checkpoint = "facebook/wav2vec2-base"
 input_values = Input(shape=(16000,), dtype=tf.float32)
@@ -54,15 +58,6 @@ audio_time_model.compile(loss='binary_crossentropy', optimizer='adam', metrics=[
 callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss',
                                             patience=10,
                                             restore_best_weights=True)
-
-# Dummy data
-audio_train = np.random.randn(10, 16000).astype(np.float32)
-time_train = np.random.randn(10, 50, 2).astype(np.float32)
-y_train = np.random.randint(0, 2, size=(10, 1))
-
-audio_val = np.random.randn(2, 16000).astype(np.float32)
-time_val = np.random.randn(2, 50, 2).astype(np.float32)
-y_val = np.random.randint(0, 2, size=(2, 1))
 
 # Train
 audio_time_model.fit([audio_train, time_train], y_train,

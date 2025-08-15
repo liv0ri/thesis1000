@@ -1,26 +1,21 @@
-import numpy as np
 import tensorflow as tf
 from tensorflow.keras.layers import Input, Embedding, LSTM, Dense, Dropout, GlobalAveragePooling1D, Concatenate
 from tensorflow.keras.models import Model
 from wav2vec_feature_extractor import Wav2VecFeatureExtractor  # your custom wrapper
 import os
 from weights import Weights
+from utils import load_split
+import pickle
 
-vocab = {f"word{i}": i for i in range(1, 101)}
-word2vec_vectors = {word: np.random.rand(300) for word in vocab}
+audio_train, word_train, _, y_train = load_split("pitt_split/train", load_times=False)
+audio_val, word_val, _, y_val = load_split("pitt_split/val", load_times=False)
+audio_test, word_test, _, y_test = load_split("pitt_split/test", load_times=False)
 
-# Dummy data (10 train, 2 val, 2 test)
-audio_train = np.random.randn(10, 16000).astype(np.float32)
-word_train = np.random.randint(1, len(vocab) + 1, size=(10, 50))
-y_train = np.random.randint(0, 2, size=(10, 1))
-
-audio_val = np.random.randn(2, 16000).astype(np.float32)
-word_val = np.random.randint(1, len(vocab) + 1, size=(2, 50))
-y_val = np.random.randint(0, 2, size=(2, 1))
-
-audio_test = np.random.randn(2, 16000).astype(np.float32)
-word_test = np.random.randint(1, len(vocab) + 1, size=(2, 50))
-y_test = np.random.randint(0, 2, size=(2, 1))
+with open(os.path.join("pitt_split", "vocab.pkl"), "rb") as f:
+    data = f.read()
+vocab = pickle.loads(data)
+with open("embeddings/word2vec_vectors.pkl", "rb") as f:
+    word2vec_vectors = pickle.load(f)
 
 # Prepare embedding matrix from your weights class
 weight = Weights(vocab, word2vec_vectors)

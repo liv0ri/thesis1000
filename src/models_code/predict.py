@@ -1,14 +1,13 @@
-vocab = {
-    "word1": 1,
-    "word2": 2,
-    "word3": 3,
-    # ... and so on ...
-}
 
 import os
 import numpy as np
 import tensorflow as tf
 from wav2vec_feature_extractor import Wav2VecFeatureExtractor  # your custom wrapper
+import pickle
+
+with open(os.path.join("pitt_split", "vocab.pkl"), "rb") as f:
+    data = f.read()
+vocab = pickle.loads(data)
 
 
 Word2VecFeatureExtractor = Wav2VecFeatureExtractor("facebook/wav2vec2-base")
@@ -40,6 +39,7 @@ print(f"Predicted class: {predicted_class[0][0]}")
 # dummy word_new with shape (1, 50) and time_new with shape (1, 50, 2)
 print("Loading word_time_model...")
 word_new = np.random.randint(1, 1000 + 1, size=(1, 50))
+word_new = np.clip(word_new, 0, 101 - 1)
 time_new = np.random.randn(1, 50, 2).astype(np.float32)
 
 # Load the saved model
@@ -61,6 +61,7 @@ print(f"Predicted class: {predicted_class[0][0]}")
 # dummy word_new with shape (1, 50)
 print("Loading text_model...")
 word_new = np.random.randint(1, len(vocab) + 1, size=(1, 50))
+word_new = np.clip(word_new, 0, 101 - 1)
 
 # Load the saved model
 loaded_text_model = tf.keras.models.load_model(os.path.join("models", "text_model.keras"))
@@ -127,6 +128,7 @@ print("Loading audio_word_time_model...")
 # Combined model prediction fix
 audio_new = np.random.randn(1, 16000).astype(np.float32)
 word_new = np.random.randint(1, len(vocab), size=(1, 50)).astype(np.int32) 
+word_new = np.clip(word_new, 0, 101 - 1)
 time_new = np.random.randn(1, 50, 2).astype(np.float32)
 
 loaded_combined_model = tf.keras.models.load_model(os.path.join("models", "audio_word_time_model.keras"))

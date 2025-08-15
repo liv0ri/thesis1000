@@ -4,15 +4,21 @@ import tensorflow as tf
 from tensorflow.keras.layers import Input, Embedding, LSTM, Dense
 from tensorflow.keras.models import Model
 from weights import Weights
+from utils import load_split
+import pickle
 
+_, word_train, _, y_train = load_split("pitt_split/train", load_audio=False, load_times=False)
+_, word_val, _, y_val = load_split("pitt_split/val", load_audio=False, load_times=False)
+_, word_test, _, y_test = load_split("pitt_split/test", load_audio=False, load_times=False)
 # word2vec_vectors = KeyedVectors.load("/content/drive/MyDrive/Colab_Notebooks/dementia/English/dementia/English/Pitt/word2vec_embeddings/word2vec.wordvectors")
 # vocab = tokenizer.word_index
-
-# Dummy vocab simulating word_index (words mapped to indices)
-vocab = {f"word{i}": i for i in range(1, 1000 + 1)}
+with open(os.path.join("pitt_split", "vocab.pkl"), "rb") as f:
+    data = f.read()
+vocab = pickle.loads(data)
 
 # Simulate word2vec vectors: a dictionary mapping word -> random 300-dim vector
-word2vec_vectors = {word: np.random.rand(300) for word in vocab.keys()}
+with open("embeddings/word2vec_vectors.pkl", "rb") as f:
+    word2vec_vectors = pickle.load(f)
 
 weight = Weights(vocab, word2vec_vectors)
 embedding_vectors = weight.get_weight_matrix()
@@ -37,26 +43,13 @@ lstm_output = LSTM(16, dropout=0.2, recurrent_dropout=0.2)(word_embedded)
 output = Dense(1, activation='sigmoid')(lstm_output)
 
 # Build model
-model = Model(inputs=word_input, outputs=output, name='text_lstm_model')
+model = Model(inputs=word_input, outputs=output, name='word_lstm_model')
 
 # Compile the model
 model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy', tf.keras.metrics.Precision(),tf.keras.metrics.Recall(), tf.keras.metrics.AUC()])
 
 model.summary()
 
-num_samples_train = 20
-num_samples_val = 5
-num_samples_test = 5
-
-# Random integers from 1 to 1000 for each word index in sequence length 50
-word_train = np.random.randint(1, 1000 + 1, size=(num_samples_train, 50))
-y_train = np.random.randint(0, 2, size=(num_samples_train, 1))
-
-word_val = np.random.randint(1, 1000 + 1, size=(num_samples_val, 50))
-y_val = np.random.randint(0, 2, size=(num_samples_val, 1))
-
-word_test = np.random.randint(1, 1000 + 1, size=(num_samples_test, 50))
-y_test = np.random.randint(0, 2, size=(num_samples_test, 1))
 
 # Early stopping callback
 callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
