@@ -7,7 +7,8 @@ from weights import Weights
 from utils import load_split
 import pickle
 
-_, word_train, time_train, y_train = load_split("pitt_split/train", load_audio=False)
+
+_, word_train, time_train, y_train = load_split("pitt_split\train", load_audio=False)
 _, word_val, time_val, y_val = load_split("pitt_split/val", load_audio=False)
 _, word_test, time_test, y_test = load_split("pitt_split/test", load_audio=False)
 

@@ -6,10 +6,12 @@ from wav2vec_feature_extractor import Wav2VecFeatureExtractor
 from weights import Weights
 from utils import load_split
 import pickle
+from config import TRAIN_PATH, TEST_PATH, VAL_PATH
 
-audio_train, word_train, time_train, y_train = load_split("pitt_split/train")
-audio_val, word_val, time_val, y_val = load_split("pitt_split/val")
-audio_test, word_test, time_test, y_test = load_split("pitt_split/test")
+
+audio_train, word_train, time_train, y_train = load_split(TRAIN_PATH)
+audio_val, word_val, time_val, y_val = load_split(VAL_PATH)
+audio_test, word_test, time_test, y_test = load_split(TEST_PATH)
 
 # Load the pre-trained model using the Hugging Face interface
 model_checkpoint = "facebook/wav2vec2-base"
@@ -30,7 +32,7 @@ with open(os.path.join("pitt_split", "vocab.pkl"), "rb") as f:
     data = f.read()
 vocab = pickle.loads(data)
 
-with open("embeddings/word2vec_vectors.pkl", "rb") as f:
+with open(os.path.join("pitt_split", "word2vec_vectors.pkl"), "rb") as f:
     word2vec_vectors = pickle.load(f)
 
 weight = Weights(vocab, word2vec_vectors)

@@ -4,12 +4,13 @@ from tensorflow.keras.layers import Dense
 from tensorflow.keras.models import Model
 from wav2vec_feature_extractor import Wav2VecFeatureExtractor
 import os
+from config import TRAIN_PATH, TEST_PATH, VAL_PATH
 from utils import load_split
 
 # Load real Pitt data
-audio_train, _, _, y_train = load_split("pitt_split/train", load_words=False, load_times=False)
-audio_val, _, _, y_val = load_split("pitt_split/val", load_words=False, load_times=False)
-audio_test, _, _, y_test = load_split("pitt_split/test", load_words=False, load_times=False)
+audio_train, _, _, y_train = load_split(TRAIN_PATH, load_words=False, load_times=False)
+audio_val, _, _, y_val = load_split(TEST_PATH, load_words=False, load_times=False)
+audio_test, _, _, y_test = load_split(VAL_PATH, load_words=False, load_times=False)
 
 # Load the pre-trained model using the Hugging Face interface 
 model_checkpoint = "facebook/wav2vec2-base"
