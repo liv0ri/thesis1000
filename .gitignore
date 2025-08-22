@@ -12,6 +12,7 @@ models/
 *.tflite
 logs/
 pitt_split/
+pitt_split1/
 embeddings/
 # PyTorch cache
 *.pt

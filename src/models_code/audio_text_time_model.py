@@ -1,5 +1,4 @@
 import os
-import numpy as np
 import tensorflow as tf
 from tensorflow.keras.layers import Input, Embedding, Concatenate, LSTM, Dense, Dropout, GlobalAveragePooling1D
 from tensorflow.keras.models import Model
@@ -17,10 +16,6 @@ model_checkpoint = "facebook/wav2vec2-base"
 # Define the inputs to the model
 audio_input = Input(shape=(16000,), dtype=tf.float32)
 
-
-# huggingface_model = TFAutoModel.from_pretrained(model_checkpoint, trainable=False, from_pt=True)
-# # Pass the inputs hrough the Wav2Vec model
-# wav2vec_output = huggingface_model(input_values)
 audio_features = Wav2VecFeatureExtractor(model_checkpoint)(audio_input)
 audio_output = GlobalAveragePooling1D()(audio_features)
 audio_output = Dropout(0.5)(audio_output)
@@ -63,11 +58,6 @@ word_time_model = Model(inputs=[word_input, time_stamps], outputs=lstm_output, n
 
 # Print the model summary
 word_time_model.summary()
-# IN CASE WWE REMOVE THE ONES ABOVE
-# # # Reshape word_model output to match the shape of audio_model output
-# audio_model_output = layers.GlobalAveragePooling1D()(audio_model.output[1])
-# # Drop-out layer before the final Classification-Head
-# audio_model_output = layers.Dropout(0.5) (audio_model_output)
 
 combined_output = Concatenate()([audio_model.output, word_time_model.output])
 

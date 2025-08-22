@@ -1,7 +1,7 @@
 import tensorflow as tf
 from tensorflow.keras.layers import Input, Embedding, LSTM, Dense, Dropout, GlobalAveragePooling1D, Concatenate
 from tensorflow.keras.models import Model
-from wav2vec_feature_extractor import Wav2VecFeatureExtractor  # your custom wrapper
+from wav2vec_feature_extractor import Wav2VecFeatureExtractor  
 import os
 from weights import Weights
 from utils import load_split
@@ -28,11 +28,10 @@ embedding_layer = Embedding(input_dim=len(vocab) + 1,
                             input_length=50,
                             trainable=False)
 
-# AUDIO MODEL BRANCH
 model_checkpoint = "facebook/wav2vec2-base"
 audio_input = Input(shape=(16000,), name="audio_input")
 
-# Extract features with your wav2vec wrapper (assumed returns tensor with shape (batch, seq_len, feat_dim))
+# Extract features with your wav2vec wrapper 
 wav2vec_extractor = Wav2VecFeatureExtractor(model_checkpoint)
 audio_features = wav2vec_extractor(audio_input)
 

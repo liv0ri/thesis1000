@@ -4,7 +4,6 @@ import pickle
 import soundfile as sf
 
 def load_audio_file(file_path, target_length=16000):
-    """Load audio file and pad/truncate to target length"""
     audio, sr = sf.read(file_path)
     if len(audio) > target_length:
         audio = audio[:target_length]
@@ -13,19 +12,16 @@ def load_audio_file(file_path, target_length=16000):
     return audio.astype(np.float32)
 
 def load_split(split_dir, load_audio=True, load_words=True, load_times=True):
-    """
-    Loads data from a split directory with optional modalities.
-    
-    Args:
-        split_dir (str): path to the split folder (e.g., 'pitt_split/train')
-        load_audio (bool): whether to load audio files
-        load_words (bool): whether to load transcript word IDs
-        load_times (bool): whether to load timestamps
+    # Args:
+    #     split_dir (str): path to the split folder
+    #     load_audio (bool): whether to load audio files
+    #     load_words (bool): whether to load transcript word IDs
+    #     load_times (bool): whether to load timestamps
 
-    Returns:
-        tuple: (audio_data, word_data, time_data, labels)
-               Missing modalities will be returned as None.
-    """
+    # Returns:
+    #     tuple: (audio_data, word_data, time_data, labels)
+    #            Missing modalities will be returned as None.
+
     split_name = os.path.basename(split_dir.rstrip("/\\"))
     audio_data, word_data, time_data = None, None, None
 

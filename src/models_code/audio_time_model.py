@@ -1,7 +1,7 @@
 import numpy as np
 import tensorflow as tf
 import os
-from keras.layers import Dense, LSTM,  Dropout, Embedding, Input, GlobalAveragePooling1D, Concatenate
+from keras.layers import Dense, LSTM,  Dropout, Input, GlobalAveragePooling1D, Concatenate
 from wav2vec_feature_extractor import Wav2VecFeatureExtractor
 from tensorflow.keras.models import Model
 from utils import load_split
@@ -13,10 +13,6 @@ audio_test, _, time_test, y_test = load_split("pitt_split/test", load_words=Fals
 model_checkpoint = "facebook/wav2vec2-base"
 input_values = Input(shape=(16000,), dtype=tf.float32)
 
-# huggingface_model = TFAutoModel.from_pretrained(model_checkpoint, trainable=False, from_pt=True)
-# Pass the inputs through the Wav2Vec model
-# wav2vec_output = huggingface_model(input_values)
-# BEFORE WE HAD THIS INSTEAD
 # Define the inputs to the model
 audio_features = Wav2VecFeatureExtractor(model_checkpoint)(input_values)
 audio_output = GlobalAveragePooling1D()(audio_features)
@@ -37,13 +33,6 @@ time_model = Model(inputs=time_stamps, outputs=lstm_output, name='time_model')
 
 # Print the model summary
 time_model.summary()
-
-# IN CASE WWE REMOVE THE ONES ABOVE
-# Reshape word_model output to match the shape of audio_model output
-# audio_model_output = layers.GlobalAveragePooling1D()(audio_model.output[1])
-# # Drop-out layer before the final Classification-Head
-# audio_model_output = layers.Dropout(0.5) (audio_model_output)
-
 
 concatenated_output = Concatenate()([audio_model.output, time_model.output])
 # apply a FC layer and then a regression prediction on the

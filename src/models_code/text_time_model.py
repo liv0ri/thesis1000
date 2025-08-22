@@ -10,22 +10,10 @@ import pickle
 _, word_train, time_train, y_train = load_split("pitt_split/train", load_audio=False)
 _, word_val, time_val, y_val = load_split("pitt_split/val", load_audio=False)
 _, word_test, time_test, y_test = load_split("pitt_split/test", load_audio=False)
-# word2vec_vectors = KeyedVectors.load("/content/drive/MyDrive/Colab_Notebooks/dementia/English/dementia/English/Pitt/word2vec_embeddings/word2vec.wordvectors", mmap='r')
 
 with open(os.path.join("pitt_split", "vocab.pkl"), "rb") as f:
     data = f.read()
 vocab = pickle.loads(data)
-
-# # save dictionary to person_data.pkl file
-# with open('/content/drive/MyDrive/Colab_Notebooks/dementia/English/dementia/English/Pitt/final_combined_data/vocab_dict.pkl', 'wb') as fp:
-#     pickle.dump(vocab, fp)
-#     print('dictionary saved successfully to file')
-# Load the vocabulary dictionary
-# import pickle
-# with open('/content/drive/MyDrive/Colab_Notebooks/dementia/English/dementia/English/Pitt/final_combined_data_original/vocab_dict.pkl', 'rb') as handle:
-#     data = handle.read()
-# vocab = pickle.loads(data)
-# vocab = tokenizer.word_index
 
 with open("embeddings/word2vec_vectors.pkl", "rb") as f:
     word2vec_vectors = pickle.load(f)
@@ -44,7 +32,6 @@ embedding_layer = Embedding(input_dim=len(vocab) + 1,
 word_input = Input(shape=(50,), name='word_input')
 
 # # Define input layers
-# word_input = Input(shape=(50))
 time_stamps = Input(shape=(50, 2), name='time_input')
 
 # Embed word and pos inputs

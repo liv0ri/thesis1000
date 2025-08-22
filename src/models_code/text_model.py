@@ -10,13 +10,12 @@ import pickle
 _, word_train, _, y_train = load_split("pitt_split/train", load_audio=False, load_times=False)
 _, word_val, _, y_val = load_split("pitt_split/val", load_audio=False, load_times=False)
 _, word_test, _, y_test = load_split("pitt_split/test", load_audio=False, load_times=False)
-# word2vec_vectors = KeyedVectors.load("/content/drive/MyDrive/Colab_Notebooks/dementia/English/dementia/English/Pitt/word2vec_embeddings/word2vec.wordvectors")
-# vocab = tokenizer.word_index
+
 with open(os.path.join("pitt_split", "vocab.pkl"), "rb") as f:
     data = f.read()
 vocab = pickle.loads(data)
 
-# Simulate word2vec vectors: a dictionary mapping word -> random 300-dim vector
+# a dictionary mapping word 
 with open("embeddings/word2vec_vectors.pkl", "rb") as f:
     word2vec_vectors = pickle.load(f)
 
@@ -49,7 +48,6 @@ model = Model(inputs=word_input, outputs=output, name='word_lstm_model')
 model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy', tf.keras.metrics.Precision(),tf.keras.metrics.Recall(), tf.keras.metrics.AUC()])
 
 model.summary()
-
 
 # Early stopping callback
 callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)

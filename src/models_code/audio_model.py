@@ -12,17 +12,8 @@ audio_val, _, _, y_val = load_split("pitt_split/val", load_words=False, load_tim
 audio_test, _, _, y_test = load_split("pitt_split/test", load_words=False, load_times=False)
 
 # Load the pre-trained model using the Hugging Face interface 
-# This was used by the research paper which I found best
 model_checkpoint = "facebook/wav2vec2-base"
 
-# OLD CODE THAT WAS CHANGED
-# huggingface_model = TFAutoModel.from_pretrained(model_checkpoint, trainable=False, from_pt=True)
-# # Define the inputs to the model
-# input_values = tf.keras.Input(shape=(16000,), dtype=tf.float32)
-# # Pass the inputs through the Wav2Vec model
-# wav2vec_output = huggingface_model(input_values)
-# # Reshape word_model output to match the shape of audio_model output
-# audio_model_output = layers.GlobalAveragePooling1D()(wav2vec_output[1])
 input_values = Input(shape=(16000,), dtype=tf.float32)
 wav2vec_features = Wav2VecFeatureExtractor(model_checkpoint)(input_values)
 
