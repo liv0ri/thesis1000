@@ -9,6 +9,8 @@ from config import TRAIN_PATH, TEST_PATH, VAL_PATH
 import pickle
 from weights import Weights
 
+MAX_SEQUENCE_LENGTH = 50
+
 audio_train, word_train, time_train, y_train = load_split(TRAIN_PATH)
 audio_val, word_val, time_val, y_val = load_split(VAL_PATH)
 audio_test, word_test, time_test, y_test = load_split(TEST_PATH)
@@ -44,8 +46,6 @@ embedding_vectors = weight.get_weight_matrix()
 
 # Determine the embedding dimension dynamically from the prepared matrix
 embedding_dim = embedding_vectors.shape[1]
-
-MAX_SEQUENCE_LENGTH = 50
 
 # Create the embedding layer with the pre-trained weights
 embedding_layer = Embedding(input_dim=len(vocab) + 1,
