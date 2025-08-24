@@ -15,7 +15,7 @@ def process_cha_file(filepath):
 
     Returns:
         tuple: A tuple containing a list of transcripts and a list of timestamps.
-               Returns ([], []) if the file cannot be processed.
+                Returns ([], []) if the file cannot be processed.
     """
     try:
         reader = pylangacq.read_chat(filepath)
@@ -71,6 +71,19 @@ def save_pickle(data, filepath):
     with open(filepath, "wb") as f:
         pickle.dump(data, f)
 
+def pad_list_of_lists(data, max_outer_len, max_inner_len):
+    padded_data = []
+    # Pad the outer list
+    for outer_item in data:
+        # Pad the inner lists
+        padded_inner = [inner_item + [None] * (max_inner_len - len(inner_item)) for inner_item in outer_item]
+        # Pad the outer list itself
+        padded_outer = padded_inner + [[]] * (max_outer_len - len(padded_inner))
+        padded_data.append(padded_outer)
+        
+    return padded_data
+
+
 def main():
     """
     Main function to process all .cha files and save the output.
@@ -81,45 +94,68 @@ def main():
         os.path.join(INPUT_BASE_PATH, "cha_files", "dementia")
     ]
     
-    # Define output folder paths based on OUTPUT_BASE_PATH
     TRANSCRIPT_FOLDER = os.path.join(OUTPUT_BASE_PATH, "transcripts")
     TIMESTAMP_FOLDER = os.path.join(OUTPUT_BASE_PATH, "time")
     
-    # Create output directories if they don't exist
-    os.makedirs(TRANSCRIPT_FOLDER, exist_ok=True)
-    os.makedirs(TIMESTAMP_FOLDER, exist_ok=True)
+    all_data = []
 
+    # First Pass: Process all files and store data along with metadata
+    print("Beginning first pass: processing all files to find max lengths...")
     for folder in INPUT_FOLDERS:
-        # Get the name of the last directory in the path (e.g., 'control' or 'dementia')
-        folder_name = os.path.basename(os.path.normpath(folder))
-        
-        # Check if the folder exists before listing its contents
         if not os.path.exists(folder):
             print(f"Skipping folder: {folder} not found.")
             continue
-            
+        
         for fname in os.listdir(folder):
             if fname.endswith(".cha"):
                 cha_path = os.path.join(folder, fname)
                 transcripts, timestamps = process_cha_file(cha_path)
                 
-                if not transcripts:
-                    print(f"Warning: No valid data extracted from {fname}")
-                    continue
-                
-                # Create output subdirectories based on the input folder name
-                transcript_dir = os.path.join(TRANSCRIPT_FOLDER, folder_name)
-                timestamp_dir = os.path.join(TIMESTAMP_FOLDER, folder_name)
-                os.makedirs(transcript_dir, exist_ok=True)
-                os.makedirs(timestamp_dir, exist_ok=True)
+                if transcripts:
+                    all_data.append({
+                        "file_path": cha_path,
+                        "folder_name": os.path.basename(os.path.normpath(folder)),
+                        "transcripts": transcripts,
+                        "timestamps": timestamps,
+                    })
 
-                base = os.path.splitext(fname)[0]
-                
-                # Save to .pkl files in the respective subdirectories
-                save_pickle(transcripts, os.path.join(transcript_dir, base + ".pkl"))
-                save_pickle(timestamps, os.path.join(timestamp_dir, base + ".pkl"))
+    # Calculate maximum lengths for padding
+    max_transcript_outer_len = max(len(d["transcripts"]) for d in all_data) if all_data else 0
+    max_timestamp_outer_len = max(len(d["timestamps"]) for d in all_data) if all_data else 0
+    
+    max_transcript_inner_len = 0
+    max_timestamp_inner_len = 0
+    
+    for d in all_data:
+        for t in d["transcripts"]:
+            max_transcript_inner_len = max(max_transcript_inner_len, len(t))
+        for t in d["timestamps"]:
+            max_timestamp_inner_len = max(max_timestamp_inner_len, len(t))
 
-                print(f"Processed {fname} from {folder_name} → transcripts & timestamps saved")
+    print(f"\nMax utterance count: {max_transcript_outer_len}")
+    print(f"Max words per utterance: {max_transcript_inner_len}")
+    
+    # Second Pass: Pad and save each file
+    print("\nBeginning second pass: padding and saving files...")
+    for data_item in all_data:
+        file_path = data_item["file_path"]
+        folder_name = data_item["folder_name"]
+        
+        # Pad the transcripts and timestamps
+        padded_transcripts = pad_list_of_lists([data_item["transcripts"]], max_transcript_outer_len, max_transcript_inner_len)[0]
+        padded_timestamps = pad_list_of_lists([data_item["timestamps"]], max_timestamp_outer_len, max_timestamp_inner_len)[0]
+
+        base = os.path.splitext(os.path.basename(file_path))[0]
+        
+        transcript_dir = os.path.join(TRANSCRIPT_FOLDER, folder_name)
+        timestamp_dir = os.path.join(TIMESTAMP_FOLDER, folder_name)
+        os.makedirs(transcript_dir, exist_ok=True)
+        os.makedirs(timestamp_dir, exist_ok=True)
+
+        save_pickle(padded_transcripts, os.path.join(transcript_dir, base + ".pkl"))
+        save_pickle(padded_timestamps, os.path.join(timestamp_dir, base + ".pkl"))
+
+        print(f"Processed and padded {os.path.basename(file_path)} from {folder_name} → transcripts & timestamps saved")
 
 if __name__ == "__main__":
     main()

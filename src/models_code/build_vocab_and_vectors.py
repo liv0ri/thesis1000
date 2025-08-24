@@ -5,11 +5,7 @@ from gensim.models import Word2Vec
 import numpy as np
 
 # --- User-defined variables ---
-# Set the ABSOLUTE path where your processed data (from the cha-file-processor) is located.
-# Example: C:\\Users\\YourName\\Documents\\my_project\\processed_data
 DATA_BASE_PATH = "pitt_split1" 
-# Set the ABSOLUTE path where you want the output files (vocab and word2vec) to be saved.
-# Example: C:\\Users\\YourName\\Documents\\my_project\\embeddings
 OUTPUT_BASE_PATH = "pitt_split"
 
 def get_transcripts_from_folder(folder_path):
@@ -25,23 +21,24 @@ def get_transcripts_from_folder(folder_path):
         list: A list of sentences, where each sentence is a list of words.
     """
     sentences = []
-    # Check if the folder exists
     if not os.path.exists(folder_path):
         print(f"Error: Transcript folder not found at {folder_path}")
         return sentences
 
-    # Walk through the directory and its subdirectories
     for root, dirs, files in os.walk(folder_path):
         for fname in files:
             if fname.endswith(".pkl"):
                 file_path = os.path.join(root, fname)
                 try:
-                    # Transcripts are stored as lists of lists of words.
                     with open(file_path, "rb") as f:
                         transcript = pickle.load(f)
                     
-                    # Extend the main list with the transcripts from this file
-                    sentences.extend(transcript)
+                    # Filter out None values from the transcript lists
+                    cleaned_transcript = [[word for word in sentence if word is not None] for sentence in transcript]
+                    # Filter out any empty sentences that might result from the cleaning
+                    cleaned_transcript = [sentence for sentence in cleaned_transcript if sentence]
+                    
+                    sentences.extend(cleaned_transcript)
                 except (IOError, pickle.UnpicklingError) as e:
                     print(f"Error reading {file_path}: {e}")
     return sentences
@@ -49,7 +46,7 @@ def get_transcripts_from_folder(folder_path):
 def build_vocabulary(sentences):
     """
     Builds a vocabulary of all unique words from a list of sentences
-    and maps each word to an integer index.
+    and maps each word to an integer index, including an OOV token.
     
     Args:
         sentences (list): A list of sentences (lists of words).
@@ -59,10 +56,17 @@ def build_vocabulary(sentences):
     """
     word_counts = collections.Counter()
     for sentence in sentences:
-        word_counts.update(sentence)
+        # Filter out None values just in case
+        clean_sentence = [word for word in sentence if word is not None]
+        word_counts.update(clean_sentence)
     
-    # Create a dictionary mapping each word to a unique integer index
-    vocab_dict = {word: i for i, word in enumerate(sorted(word_counts.keys()))}
+    # Get a list of all unique words from the word counts
+    unique_words = sorted(word_counts.keys())
+    vocab_dict = {}
+    
+    # Create the dictionary by assigning a unique index to each word
+    for i, word in enumerate(unique_words):
+        vocab_dict[word] = i + 1
     
     return vocab_dict
 
@@ -77,14 +81,13 @@ def train_word2vec_model(sentences):
         gensim.models.Word2Vec: The trained Word2Vec model.
     """
     print("Training Word2Vec model...")
-    # Using sensible default parameters for a small dataset
     model = Word2Vec(
         sentences,
-        vector_size=100,  # Dimensionality of the word vectors
-        window=5,         # Maximum distance between the current and predicted word
-        min_count=1,      # Ignores all words with total frequency lower than this
-        sg=0,             # Training algorithm: 0 for CBOW, 1 for skip-gram
-        epochs=100        # Number of iterations over the corpus
+        vector_size=100,
+        window=5,
+        min_count=1,
+        sg=0,
+        epochs=100
     )
     print("Training complete.")
     return model
@@ -97,7 +100,6 @@ def save_data(data, file_path):
         data: The data to save.
         file_path (str): The path where the file will be saved.
     """
-    # Create the directory if it doesn't exist
     os.makedirs(os.path.dirname(file_path), exist_ok=True)
     
     with open(file_path, "wb") as f:
@@ -105,26 +107,31 @@ def save_data(data, file_path):
     print(f"Successfully saved data to {file_path}")
 
 if __name__ == "__main__":
-    # The full path to the transcript files
     TRANSCRIPTS_FOLDER = os.path.join(DATA_BASE_PATH, "transcripts")
-    # The full path to save the vocabulary file
     VOCAB_OUTPUT_PATH = os.path.join(OUTPUT_BASE_PATH, "vocab.pkl")
-    # The full path to save the word vectors
     WORD2VEC_OUTPUT_PATH = os.path.join(OUTPUT_BASE_PATH, "word2vec_vectors.pkl")
     
-    # Step 1: Get all sentences (transcripts) from the folder and its subdirectories
+    # Step 1: Load all sentences from the transcript files.
     sentences = get_transcripts_from_folder(TRANSCRIPTS_FOLDER)
     
     if not sentences:
         print("No transcripts found. Cannot proceed.")
     else:
-        # Step 2: Build the vocabulary
+        # Step 2: Build the full vocabulary, including the '<unk>' token.
         vocab = build_vocabulary(sentences)
+        
+        # Step 3: Create a new list of sentences where words not in the vocabulary
+        # are replaced with the '<unk>' token.
+        tokenized_sentences = []
+        for sentence in sentences:
+            tokenized_sentence = [word for word in sentence if word in vocab]
+            tokenized_sentences.append(tokenized_sentence)
+        
+        # Step 4: Train the Word2Vec model on the tokenized sentences.
+        # This ensures the model learns a vector for the '<unk>' token.
+        word2vec_model = train_word2vec_model(tokenized_sentences)
+        
+        # Step 5: Save both the vocabulary and the word2vec vectors.
         save_data(vocab, VOCAB_OUTPUT_PATH)
-        
-        # Step 3: Train the Word2Vec model
-        word2vec_model = train_word2vec_model(sentences)
-        
-        # Step 4: Extract the word vectors and save them
         word2vec_vectors = word2vec_model.wv
         save_data(word2vec_vectors, WORD2VEC_OUTPUT_PATH)
