@@ -2,7 +2,6 @@ import os
 import shutil
 import random
 
-# --- User-defined variables ---
 # Define the top-level folders for your dataset categories
 SOURCE_FOLDERS = ["control", "dementia"]
 # The destination folder for the split dataset
@@ -12,15 +11,12 @@ TRAIN_RATIO = 4/5
 VAL_RATIO_OF_TRAIN = 4/5
 
 def get_all_files():
-    """Gathers all filenames and their categories from the existing 'transcripts' directory."""
     all_files = []
     for category in SOURCE_FOLDERS:
-        # Assumes source data is in 'pitt_split1'
         source_dir = os.path.join("pitt_split1/transcripts", category)
         
         if not os.path.exists(source_dir):
-            print(f"Directory not found: {source_dir}. Skipping.")
-            continue
+            raise FileNotFoundError(f"Directory not found: {source_dir}. Skipping.")
 
         for fname in os.listdir(source_dir):
             if fname.endswith(".pkl"):
@@ -30,7 +26,6 @@ def get_all_files():
     return all_files
 
 def organize_files(file_list):
-    """Organizes files into the desired directory structure."""
     # Shuffle to ensure a random split each time
     random.shuffle(file_list)
     
@@ -65,7 +60,7 @@ def organize_files(file_list):
             category = file_info["category"]
             
             # The paths for the source files
-            audio_source = os.path.join("pitt_split1", "wav", category, base_name + ".mp3") # Corrected from .mp3 to .wav based on common audio formats
+            audio_source = os.path.join("pitt_split1", "wav", category, base_name + ".mp3") 
             transcripts_source = os.path.join("pitt_split1", "transcripts", category, base_name + ".pkl")
             timestamps_source = os.path.join("pitt_split1", "time", category, base_name + ".pkl")
             
@@ -78,23 +73,20 @@ def organize_files(file_list):
             if os.path.exists(audio_source):
                 shutil.copy(audio_source, audio_dest)
             else:
-                print(f"X Audio file not found: {audio_source}")
+                raise FileNotFoundError(f"X Audio file not found: {audio_source}")
                 
             # Copy transcripts files
             if os.path.exists(transcripts_source):
                 shutil.copy(transcripts_source, transcripts_dest)
             else:
-                print(f"X Transcript file not found: {transcripts_source}")
+                raise FileNotFoundError(f"X Transcript file not found: {transcripts_source}")
             
             # Copy timestamps files
             if os.path.exists(timestamps_source):
                 shutil.copy(timestamps_source, timestamps_dest)
             else:
-                print(f"X Timestamp file not found: {timestamps_source}")
+                raise FileNotFoundError(f"X Timestamp file not found: {timestamps_source}")
 
 if __name__ == "__main__":
     all_files = get_all_files()
-    if not all_files:
-        print("No .pkl files found. Please check your 'transcripts' directory structure.")
-    else:
-        organize_files(all_files)
+    organize_files(all_files)
