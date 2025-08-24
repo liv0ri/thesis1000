@@ -45,5 +45,8 @@ audio_model.fit(audio_train, y_train,
 # Evaluate the audio model
 audio_model.evaluate(audio_test, y_test)
 
+# Create the models directory if it doesn't exist
+os.makedirs("models", exist_ok=True)
+
 # Save the model to the models directory
 audio_model.save(os.path.join("models", "audio_model.keras"))

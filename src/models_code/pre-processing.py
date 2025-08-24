@@ -54,20 +54,16 @@ def save_pickle(data, filepath):
         pickle.dump(data, f)
 
 def pad_list_of_lists(data, max_outer_len, max_inner_len):
-    # Pad each utterance (inner list)
-    padded_inner_lists = [
-        inner_item + [None] * (max_inner_len - len(inner_item))
-        for inner_item in data
-    ]
-
-    # Pad the outer list (utterances)
-    padded_data = padded_inner_lists + [
-        [None] * max_inner_len
-        for _ in range(max_outer_len - len(padded_inner_lists))
-    ]
-
+    padded_data = []
+    # Pad the outer list
+    for outer_item in data:
+        # Pad the inner lists
+        padded_inner = [inner_item + [None] * (max_inner_len - len(inner_item)) for inner_item in outer_item]
+        # Pad the outer list itself
+        padded_outer = padded_inner + [[]] * (max_outer_len - len(padded_inner))
+        padded_data.append(padded_outer)
+        
     return padded_data
-
 
 def main():
     # Define input folders based on the INPUT_BASE_PATH
@@ -121,8 +117,8 @@ def main():
         folder_name = data_item["folder_name"]
         
         # Pad the transcripts and timestamps - take the first element from a list of length 1
-        padded_transcripts = pad_list_of_lists([data_item["transcripts"]], max_transcript_outer_len, max_transcript_inner_len)
-        padded_timestamps = pad_list_of_lists([data_item["timestamps"]], max_timestamp_outer_len, max_timestamp_inner_len)
+        padded_transcripts = pad_list_of_lists([data_item["transcripts"]], max_transcript_outer_len, max_transcript_inner_len)[0]
+        padded_timestamps = pad_list_of_lists([data_item["timestamps"]], max_timestamp_outer_len, max_timestamp_inner_len)[0]
 
         base = os.path.splitext(os.path.basename(file_path))[0]
         
