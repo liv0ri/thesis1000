@@ -76,8 +76,13 @@ combined_output = Concatenate()([audio_model.output, word_time_model.output])
 # Add a final dense layer for classification
 final_output = Dense(1, activation='sigmoid')(combined_output)
 
-# Create the final combined model
-combined_model = Model(inputs=[audio_model.input, word_time_model.input], outputs=final_output, name="combined_model")
+# Build the combined model
+combined_model = Model(
+    inputs=[audio_model.input, *word_time_model.input],  # unpack list
+    outputs=final_output,
+    name="combined_model"
+)
+
 combined_model.summary()
 
 # Pad the training, validation, and test data
@@ -85,7 +90,7 @@ word_train_padded, time_train_padded = pad_sequences_and_times_np(word_train, ti
 word_val_padded, time_val_padded = pad_sequences_and_times_np(word_val, time_val, MAX_SEQUENCE_LENGTH)
 word_test_padded, time_test_padded = pad_sequences_and_times_np(word_test, time_test, MAX_SEQUENCE_LENGTH)
 
-# Prepare the data for training, validation, and testing with the padded word and time sequences
+# Prepare data for training/validation/testing (flattened, not nested)
 combined_train_inputs = [audio_train, word_train_padded, time_train_padded]
 combined_val_inputs = [audio_val, word_val_padded, time_val_padded]
 combined_test_inputs = [audio_test, word_test_padded, time_test_padded]
