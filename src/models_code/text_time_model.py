@@ -25,6 +25,7 @@ with open(os.path.join("pitt_split", "word2vec_vectors.pkl"), "rb") as f:
 
 weight = Weights(vocab, word2vec_vectors)
 embedding_vectors = weight.get_weight_matrix()
+
 # Determine the embedding dimension dynamically from the prepared matrix
 embedding_dim = embedding_vectors.shape[1]
 

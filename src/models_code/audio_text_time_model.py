@@ -30,7 +30,6 @@ audio_output = Dropout(0.5)(audio_output)
 
 # Create the TensorFlow functional API model for audio
 audio_model = Model(inputs=audio_input, outputs=audio_output, name="audio_model")
-
 audio_model.summary()
 
 # Load the pre-processed vocabulary and word2vec vectors
@@ -41,7 +40,6 @@ with open(os.path.join("pitt_split", "word2vec_vectors.pkl"), "rb") as f:
     word2vec_vectors = pickle.load(f)
 
 weight = Weights(vocab, word2vec_vectors)
-
 embedding_vectors = weight.get_weight_matrix()
 
 # Determine the embedding dimension dynamically from the prepared matrix

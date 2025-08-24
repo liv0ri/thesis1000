@@ -16,11 +16,10 @@ audio_test, _, _, y_test = load_split(VAL_PATH, load_words=False, load_times=Fal
 model_checkpoint = "facebook/wav2vec2-base"
 
 input_values = Input(shape=(16000,), dtype=tf.float32)
-wav2vec_features = Wav2VecFeatureExtractor(model_checkpoint)(input_values)
 
+wav2vec_features = Wav2VecFeatureExtractor(model_checkpoint)(input_values)
 # Reshape word_model output to match the shape of audio_model output
 audio_model_output = GlobalAveragePooling1D()(wav2vec_features)
-
 # Drop-out layer before the final Classification-Head
 audio_model_output = Dropout(0.5) (audio_model_output)
 # Make the output either a 1 or a 0
@@ -28,6 +27,7 @@ output = Dense(1, activation='sigmoid')(audio_model_output)
 
 # Create the TensorFlow functional API model
 audio_model = Model(inputs=input_values, outputs=output)
+
 audio_model.summary()
 
 # Train the audio model binary cross entropy is used because the labels are either 0 or 1 - standard for classification problems
@@ -45,7 +45,6 @@ audio_model.fit(audio_train, y_train,
 # Evaluate the audio model
 audio_model.evaluate(audio_test, y_test)
 
-# Create the models directory if it doesn't exist
 os.makedirs("models", exist_ok=True)
 
 # Save the model to the models directory

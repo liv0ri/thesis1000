@@ -2,7 +2,7 @@
 import os
 import numpy as np
 import tensorflow as tf
-from wav2vec_feature_extractor import Wav2VecFeatureExtractor  # your custom wrapper
+from wav2vec_feature_extractor import Wav2VecFeatureExtractor 
 import pickle
 
 with open(os.path.join("pitt_split", "vocab.pkl"), "rb") as f:

@@ -46,7 +46,6 @@ _, time_test_padded = pad_sequences_and_times_np(None, time_test, MAX_SEQUENCE_L
  
 # Compile and train the model
 audio_time_model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy', tf.keras.metrics.Precision(), tf.keras.metrics.Recall(), tf.keras.metrics.AUC()])
-
 callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss',
                                             patience=10,
                                             restore_best_weights=True)
