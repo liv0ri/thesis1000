@@ -7,16 +7,6 @@ INPUT_BASE_PATH = "pitt_split1"
 OUTPUT_BASE_PATH = "pitt_split1"
 
 def process_cha_file(filepath):
-    """
-    Extracts words and timestamps from a .cha file.
-
-    Args:
-        filepath (str): The full path to the .cha file.
-
-    Returns:
-        tuple: A tuple containing a list of transcripts and a list of timestamps.
-                Returns ([], []) if the file cannot be processed.
-    """
     try:
         reader = pylangacq.read_chat(filepath)
         utterances = reader.utterances()
@@ -52,8 +42,7 @@ def process_cha_file(filepath):
             transcripts.append(words)
             timestamps.append(word_times)
     except Exception as e:
-        print(f"Error processing file {filepath}: {e}")
-        return [], []
+        raise ValueError(f"Error processing file {filepath}: {e}")
 
     return transcripts, timestamps
 
@@ -85,9 +74,6 @@ def pad_list_of_lists(data, max_outer_len, max_inner_len):
 
 
 def main():
-    """
-    Main function to process all .cha files and save the output.
-    """
     # Define input folders based on the INPUT_BASE_PATH
     INPUT_FOLDERS = [
         os.path.join(INPUT_BASE_PATH, "cha_files", "control"),
@@ -103,8 +89,7 @@ def main():
     print("Beginning first pass: processing all files to find max lengths...")
     for folder in INPUT_FOLDERS:
         if not os.path.exists(folder):
-            print(f"Skipping folder: {folder} not found.")
-            continue
+            raise FileNotFoundError(f"Skipping folder: {folder} not found.")
         
         for fname in os.listdir(folder):
             if fname.endswith(".cha"):
@@ -135,7 +120,6 @@ def main():
     print(f"\nMax utterance count: {max_transcript_outer_len}")
     print(f"Max words per utterance: {max_transcript_inner_len}")
     
-    # Second Pass: Pad and save each file
     print("\nBeginning second pass: padding and saving files...")
     for data_item in all_data:
         file_path = data_item["file_path"]
@@ -154,8 +138,6 @@ def main():
 
         save_pickle(padded_transcripts, os.path.join(transcript_dir, base + ".pkl"))
         save_pickle(padded_timestamps, os.path.join(timestamp_dir, base + ".pkl"))
-
-        print(f"Processed and padded {os.path.basename(file_path)} from {folder_name} → transcripts & timestamps saved")
 
 if __name__ == "__main__":
     main()
