@@ -10,9 +10,8 @@ class Weights:
         
         # Iterate through the words in your vocabulary to find their corresponding vectors.
         for word, index in self.vocab.items():
-            if word in self.word2vec_vectors:
-                # Assign the pre-trained vector to the corresponding row in the matrix.
-                weight_matrix[index] = self.word2vec_vectors[word]
-            # No 'else' needed; words not found will retain their initial zero vector.
+            # if word in self.word2vec_vectors:
+            # Assign the pre-trained vector to the corresponding row in the matrix.
+            weight_matrix[index] = self.word2vec_vectors[word]
                 
         return weight_matrix
