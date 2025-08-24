@@ -30,17 +30,14 @@ output = Dense(1, activation='sigmoid')(audio_model_output)
 audio_model = Model(inputs=input_values, outputs=output)
 audio_model.summary()
 
-# Train the audio model
-# binary cross entropy is used because the labels are either 0 or 1 - standard for classification problems
+# Train the audio model binary cross entropy is used because the labels are either 0 or 1 - standard for classification problems
 audio_model.compile(loss='binary_crossentropy', optimizer='adam',  metrics=['accuracy', tf.keras.metrics.Precision(),tf.keras.metrics.Recall(), tf.keras.metrics.AUC()])
 
-# Stop training if the validation loss stops decreasing for 10 epochs
-# Ensure the best weights are saved
+# Stop training if the validation loss stops decreasing for 10 epochs - Ensure the best weights are saved
 callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss',
                                             patience=10,
                                             restore_best_weights=True)
 
-# fit(x, y, epochs, batch_size, validation_data, callbacks)
 audio_model.fit(audio_train, y_train,
                        epochs=50, batch_size=16, validation_data=(audio_val, y_val),
                        callbacks=callback)
