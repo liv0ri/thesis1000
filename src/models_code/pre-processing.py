@@ -15,7 +15,7 @@ def process_cha_file(filepath):
         timestamps = []
 
         for utt in utterances:
-            # Extract words, filtering out any non-alphabetic tokens.
+            # Extract words, filtering out any non-alphabetic tokens
             words = [tok.word for tok in utt.tokens if tok.word and tok.word.isalpha()]
             
             # Check for time marks
@@ -27,7 +27,7 @@ def process_cha_file(filepath):
             if not words or start is None or end is None:
                 continue
 
-            # Calculate the duration of the utterance, ensuring it's not zero.
+            # Calculate the duration of the utterance, ensuring it's not zero
             duration = max(1e-6, end - start)
             word_times = []
             n_words = len(words)
@@ -47,13 +47,6 @@ def process_cha_file(filepath):
     return transcripts, timestamps
 
 def save_pickle(data, filepath):
-    """
-    Saves data to a pickle file.
-
-    Args:
-        data: The data to save.
-        filepath (str): The path where the file will be saved.
-    """
     # Create the directory if it doesn't exist
     os.makedirs(os.path.dirname(filepath), exist_ok=True)
     
@@ -72,7 +65,6 @@ def pad_list_of_lists(data, max_outer_len, max_inner_len):
         
     return padded_data
 
-
 def main():
     # Define input folders based on the INPUT_BASE_PATH
     INPUT_FOLDERS = [
@@ -85,7 +77,6 @@ def main():
     
     all_data = []
 
-    # First Pass: Process all files and store data along with metadata
     print("Beginning first pass: processing all files to find max lengths...")
     for folder in INPUT_FOLDERS:
         if not os.path.exists(folder):
@@ -125,7 +116,7 @@ def main():
         file_path = data_item["file_path"]
         folder_name = data_item["folder_name"]
         
-        # Pad the transcripts and timestamps
+        # Pad the transcripts and timestamps - take the first element from a list of length 1
         padded_transcripts = pad_list_of_lists([data_item["transcripts"]], max_transcript_outer_len, max_transcript_inner_len)[0]
         padded_timestamps = pad_list_of_lists([data_item["timestamps"]], max_timestamp_outer_len, max_timestamp_inner_len)[0]
 
