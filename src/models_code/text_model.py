@@ -6,14 +6,15 @@ from tensorflow.keras.models import Model
 from weights import Weights
 from utils import load_split
 import pickle
+from config import TRAIN_PATH, TEST_PATH, VAL_PATH
 
 # Define the maximum sequence length for padding
 MAX_SEQUENCE_LENGTH = 50
 
 # Load the data splits, ensuring we only get word data and labels
-_, word_train, _, y_train = load_split("pitt_split/train", load_audio=False, load_times=False)
-_, word_val, _, y_val = load_split("pitt_split/val", load_audio=False, load_times=False)
-_, word_test, _, y_test = load_split("pitt_split/test", load_audio=False, load_times=False)
+_, word_train, _, y_train = load_split(TRAIN_PATH, load_audio=False, load_times=False)
+_, word_val, _, y_val = load_split(VAL_PATH, load_audio=False, load_times=False)
+_, word_test, _, y_test = load_split(TEST_PATH, load_audio=False, load_times=False)
 
 # Load the pre-processed vocabulary and word2vec vectors
 with open(os.path.join("pitt_split", "vocab.pkl"), "rb") as f:
