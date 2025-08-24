@@ -64,7 +64,6 @@ output = Dense(1, activation='sigmoid')(combined)
 # Define full model with two inputs
 model = Model(inputs=[audio_input, word_input], outputs=output, name="audio_word_model")
 
-# Print summary to verify structure
 model.summary()
 
 # Pad the training, validation, and test data
@@ -77,7 +76,6 @@ model.compile(loss='binary_crossentropy',
               optimizer='adam',
               metrics=['accuracy', tf.keras.metrics.Precision(), tf.keras.metrics.Recall(), tf.keras.metrics.AUC()])
 
-# Print summary to verify structure
 model.summary()
 
 # Train with EarlyStopping

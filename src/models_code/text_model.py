@@ -53,7 +53,6 @@ output = Dense(1, activation='sigmoid')(lstm_output)
 # Build model
 model = Model(inputs=word_input, outputs=output, name='word_lstm_model')
 
-# Print the model summary
 model.summary()
 
 # Pad the training, validation, and test data

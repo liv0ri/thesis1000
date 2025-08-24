@@ -117,8 +117,6 @@ def load_split(root_dir, target_length=16000, load_audio=True, load_words=True, 
     time_data = np.array(all_time_lists, dtype=object) if all_time_lists else None
     labels = np.array(labels)
     
-    print(f"Loaded {len(labels)} samples from {root_dir}")
-
     return audio_data, word_data, time_data, labels
 
 def pad_sequences_and_times_np(word_sequences=None, time_sequences=None, maxlen=100):

@@ -22,7 +22,6 @@ audio_output = GlobalAveragePooling1D()(audio_features)
 audio_output = Dropout(0.5)(audio_output)
 
 audio_model = Model(inputs=input_values, outputs=audio_output, name='audio_model')
-# Print the model summary
 audio_model.summary()
 
 time_stamps = Input(shape=(MAX_SEQUENCE_LENGTH, 2), name='time_input', dtype=tf.float32)
@@ -33,7 +32,6 @@ lstm_output = LSTM(16, dropout=0.2, recurrent_dropout=0.2)(time_stamps)
 # Time model
 time_model = Model(inputs=time_stamps, outputs=lstm_output, name='time_model')
 
-# Print the model summary
 time_model.summary()
 
 concatenated_output = Concatenate()([audio_model.output, time_model.output])

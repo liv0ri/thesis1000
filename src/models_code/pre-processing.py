@@ -77,7 +77,7 @@ def main():
     
     all_data = []
 
-    print("Beginning first pass: processing all files to find max lengths...")
+    # print("Beginning first pass: processing all files to find max lengths...")
     for folder in INPUT_FOLDERS:
         if not os.path.exists(folder):
             raise FileNotFoundError(f"Skipping folder: {folder} not found.")
@@ -108,10 +108,9 @@ def main():
         for t in d["timestamps"]:
             max_timestamp_inner_len = max(max_timestamp_inner_len, len(t))
 
-    print(f"\nMax utterance count: {max_transcript_outer_len}")
-    print(f"Max words per utterance: {max_transcript_inner_len}")
+    # print(f"\nMax utterance count: {max_transcript_outer_len}")
+    # print(f"Max words per utterance: {max_transcript_inner_len}")
     
-    print("\nBeginning second pass: padding and saving files...")
     for data_item in all_data:
         file_path = data_item["file_path"]
         folder_name = data_item["folder_name"]

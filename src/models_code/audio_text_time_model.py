@@ -29,7 +29,6 @@ audio_output = Dropout(0.5)(audio_output)
 # Create the TensorFlow functional API model for audio
 audio_model = Model(inputs=audio_input, outputs=audio_output, name="audio_model")
 
-# Print the model summary to verify the architecture
 audio_model.summary()
 
 # Load the pre-processed vocabulary and word2vec vectors
@@ -69,7 +68,6 @@ lstm_output = LSTM(16, dropout=0.2, recurrent_dropout=0.2)(concatenated)
 # Define the model
 word_time_model = Model(inputs=[word_input, time_stamps], outputs=lstm_output, name="word_model")
 
-# Print the model summary
 word_time_model.summary()
 
 # Concatenate the outputs of the audio and word/time models

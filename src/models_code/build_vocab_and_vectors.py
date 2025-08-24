@@ -11,8 +11,7 @@ DATA_BASE_PATH = "pitt_split1"
 def get_transcripts_from_folder(folder_path):
     sentences = []
     if not os.path.exists(folder_path):
-        print(f"Error: Transcript folder not found at {folder_path}")
-        return sentences
+        raise FileNotFoundError(f"Error: Transcript folder not found at {folder_path}")
 
     for root, _, files in os.walk(folder_path):
         for fname in files:
@@ -29,7 +28,7 @@ def get_transcripts_from_folder(folder_path):
                     
                     sentences.extend(cleaned_transcript)
                 except (IOError, pickle.UnpicklingError) as e:
-                    print(f"Error reading {file_path}: {e}")
+                    raise FileNotFoundError(f"Error reading {file_path}: {e}")
     return sentences
 
 def build_vocabulary(sentences):
@@ -65,7 +64,6 @@ def save_data(data, file_path):
     
     with open(file_path, "wb") as f:
         pickle.dump(data, f)
-    print(f"Successfully saved data to {file_path}")
 
 if __name__ == "__main__":
     TRANSCRIPTS_FOLDER = os.path.join(DATA_BASE_PATH, "transcripts")
