@@ -120,3 +120,52 @@ def load_split(root_dir, target_length=16000, load_audio=True, load_words=True, 
     print(f"Loaded {len(labels)} samples from {root_dir}")
 
     return audio_data, word_data, time_data, labels
+
+def pad_sequences_and_times_np(word_sequences=None, time_sequences=None, maxlen=100):
+    num_samples = 0
+    if word_sequences is not None:
+        num_samples = len(word_sequences)
+    elif time_sequences is not None:
+        num_samples = len(time_sequences)
+    else:
+        raise ValueError("At least one of word_sequences or time_sequences must be provided.")
+
+    padded_words_np = None
+    padded_times_np = None
+
+    if word_sequences is not None:
+        padded_words_np = np.zeros((num_samples, maxlen), dtype="int32")
+
+    if time_sequences is not None:
+        padded_times_np = np.zeros((num_samples, maxlen, 2), dtype="float32")
+
+    for i in range(num_samples):
+        if word_sequences is not None:
+            words = word_sequences[i]
+            cleaned_words = [w for w in words if w is not None and isinstance(w, int)]
+            seq_len = min(len(cleaned_words), maxlen)
+            if seq_len > 0:
+                padded_words_np[i, :seq_len] = cleaned_words[:seq_len]
+
+        # --- times ---
+        if time_sequences is not None:
+            times = time_sequences[i]
+
+            # ensure each element is a flat [float, float]
+            cleaned_times = []
+            for t in times:
+                if t is None:
+                    continue
+                if isinstance(t, (list, tuple)) and len(t) == 1 and isinstance(t[0], (list, tuple)):
+                    t = t[0]
+                if isinstance(t, (list, tuple)) and len(t) == 2:
+                    try:
+                        cleaned_times.append([float(t[0]), float(t[1])])
+                    except (TypeError, ValueError):
+                        continue
+
+            seq_len = min(len(cleaned_times), maxlen)
+            if seq_len > 0:
+                padded_times_np[i, :seq_len, :] = np.array(cleaned_times[:seq_len], dtype="float32")
+
+    return padded_words_np, padded_times_np

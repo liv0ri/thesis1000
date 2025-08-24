@@ -4,7 +4,7 @@ import os
 from tensorflow.keras.layers import Dense, LSTM, Dropout, Input, GlobalAveragePooling1D, Concatenate, Embedding
 from wav2vec_feature_extractor import Wav2VecFeatureExtractor
 from tensorflow.keras.models import Model
-from utils import load_split
+from utils import load_split, pad_sequences_and_times_np
 from config import TRAIN_PATH, TEST_PATH, VAL_PATH
 from weights import Weights
 import pickle
@@ -67,28 +67,10 @@ model = Model(inputs=[audio_input, word_input], outputs=output, name="audio_word
 # Print summary to verify structure
 model.summary()
 
-# FIX: Pad the word sequences to a uniform length before passing them to the model
-def pad_word_sequences(word_sequences, maxlen):
-    """
-    Pads word sequences to a uniform length and converts them to a numpy array.
-    This ensures that all input sequences have the same length as required by the
-    Embedding and LSTM layers.
-    """
-    padded_words = []
-    for words in word_sequences:
-        # Ensure only integer items are kept and pad the rest with zeros
-        cleaned_words = [item for item in words if isinstance(item, int)]
-        seq_len = min(len(cleaned_words), maxlen)
-        padded_seq = np.zeros((maxlen,), dtype='int32')
-        if seq_len > 0:
-            padded_seq[:seq_len] = cleaned_words[:seq_len]
-        padded_words.append(padded_seq)
-    return np.array(padded_words)
-
 # Pad the training, validation, and test data
-word_train_padded = pad_word_sequences(word_train, MAX_SEQUENCE_LENGTH)
-word_val_padded = pad_word_sequences(word_val, MAX_SEQUENCE_LENGTH)
-word_test_padded = pad_word_sequences(word_test, MAX_SEQUENCE_LENGTH)
+word_train_padded, _ = pad_sequences_and_times_np(word_train, None, MAX_SEQUENCE_LENGTH)
+word_val_padded, _ = pad_sequences_and_times_np(word_val, None, MAX_SEQUENCE_LENGTH)
+word_test_padded, _ = pad_sequences_and_times_np(word_test, None, MAX_SEQUENCE_LENGTH)
 
 # Compile model
 model.compile(loss='binary_crossentropy',
