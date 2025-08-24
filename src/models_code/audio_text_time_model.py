@@ -46,12 +46,9 @@ embedding_vectors = weight.get_weight_matrix()
 # Determine the embedding dimension dynamically from the prepared matrix
 embedding_dim = embedding_vectors.shape[1]
 
-# FIX: Define a constant for the sequence length to be used for padding
 MAX_SEQUENCE_LENGTH = 50
 
 # Create the embedding layer with the pre-trained weights
-# The input_dim is set to len(vocab) + 1 to properly
-# size the embedding for vocabularies that have 1-based indexing.
 embedding_layer = Embedding(input_dim=len(vocab) + 1,
                             output_dim=embedding_dim,
                             weights=[embedding_vectors],

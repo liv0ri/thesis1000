@@ -32,7 +32,7 @@ embedding_dim = embedding_vectors.shape[1]
 
 # Create the embedding layer
 embedding_layer = Embedding(input_dim=len(vocab) + 1,
-                            output_dim=embedding_dim, # FIX: Use the dynamic embedding dimension
+                            output_dim=embedding_dim, 
                             weights=[embedding_vectors],
                             input_length=MAX_SEQUENCE_LENGTH,
                             trainable=False)
