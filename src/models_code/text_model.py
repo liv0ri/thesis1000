@@ -1,96 +1,151 @@
 import os
 import numpy as np
 import tensorflow as tf
+import pickle
 from tensorflow.keras.layers import Input, Embedding, LSTM, Dense
 from tensorflow.keras.models import Model
+from sklearn.model_selection import KFold
+from sklearn.utils.class_weight import compute_class_weight
 from weights import Weights
 from utils import load_split, pad_sequences_and_times_np
-import pickle
-from config import TRAIN_PATH, TEST_PATH, VAL_PATH
+from config import TRAIN_PATH
 
 # Define the maximum sequence length for padding
 MAX_SEQUENCE_LENGTH = 50
 
-# Load the data splits, ensuring we only get word data and labels
-_, word_train, _, y_train = load_split(TRAIN_PATH, load_audio=False, load_times=False)
-_, word_val, _, y_val = load_split(VAL_PATH, load_audio=False, load_times=False)
-_, word_test, _, y_test = load_split(TEST_PATH, load_audio=False, load_times=False)
+# --- MODEL DEFINITION ---
+def create_text_model(embedding_layer, max_sequence_length):
+    """Defines and returns the Keras text-only model."""
+    word_input = Input(shape=(max_sequence_length,), name='word_input', dtype=tf.int32)
+    word_embedded = embedding_layer(word_input)
+    lstm_output = LSTM(16, dropout=0.2, recurrent_dropout=0.2)(word_embedded)
+    output = Dense(1, activation='sigmoid')(lstm_output)
+    model = Model(inputs=word_input, outputs=output, name='word_lstm_model')
+    return model
 
-# Load the pre-processed vocabulary and word2vec vectors
-with open(os.path.join("pitt_split", "vocab.pkl"), "rb") as f:
-    data = f.read()
-vocab = pickle.loads(data)
+# --- MAIN EXECUTION BLOCK ---
+if __name__ == "__main__":
+    # Load all data at once for cross-validation
+    all_audios, all_words, all_times, all_labels = load_split(TRAIN_PATH, load_audio=False, load_times=False)
+    
+    with open(os.path.join("pitt_split", "vocab.pkl"), "rb") as f:
+        data = f.read()
+    vocab = pickle.loads(data)
 
-with open(os.path.join("pitt_split", "word2vec_vectors.pkl"), "rb") as f:
-    word2vec_vectors = pickle.load(f)
+    with open(os.path.join("pitt_split", "word2vec_vectors.pkl"), "rb") as f:
+        word2vec_vectors = pickle.load(f)
 
-# Prepare embedding matrix from your weights class
-weight = Weights(vocab, word2vec_vectors)
-embedding_vectors = weight.get_weight_matrix()
+    # Prepare embedding matrix from your weights class
+    weight = Weights(vocab, word2vec_vectors)
+    embedding_vectors = weight.get_weight_matrix()
+    embedding_dim = embedding_vectors.shape[1]
+    
+    embedding_layer = Embedding(input_dim=len(vocab) + 1,
+                                output_dim=embedding_dim, 
+                                weights=[embedding_vectors],
+                                input_length=MAX_SEQUENCE_LENGTH,
+                                trainable=False)
 
-# Determine the embedding dimension dynamically from the prepared matrix
-embedding_dim = embedding_vectors.shape[1]
+    # Create a word-to-index mapping from your vocab
+    word_to_index = {word: i + 1 for i, word in enumerate(vocab)}
+    all_word_indices = [[word_to_index.get(w, 0) for w in sublist] for sublist in all_words]
 
-# Create embedding layer
-embedding_layer = Embedding(input_dim=len(vocab) + 1,
-                            output_dim=embedding_dim, 
-                            weights=[embedding_vectors],
-                            input_length=MAX_SEQUENCE_LENGTH,
-                            trainable=False) # Set to False to prevent re-training of pre-trained weights
+    # Cross-validation setup
+    kf = KFold(n_splits=5, shuffle=True, random_state=42)
+    all_eval_results = []
+    fold_number = 1
 
-# Define input layer
-word_input = Input(shape=(MAX_SEQUENCE_LENGTH,), name='word_input', dtype=tf.int32)
+    # Create the models directory if it doesn't exist
+    model_save_dir = "models"
+    os.makedirs(model_save_dir, exist_ok=True)
 
-# Embed input
-word_embedded = embedding_layer(word_input)
+    # Loop through each of the 5 folds
+    for train_val_index, test_index in kf.split(all_word_indices):
+        print(f"\n--- Starting Fold {fold_number}/5 ---")
 
-# LSTM layer
-lstm_output = LSTM(16, dropout=0.2, recurrent_dropout=0.2)(word_embedded)
+        # Create train/val/test splits for this fold
+        word_train_val = [all_word_indices[i] for i in train_val_index]
+        y_train_val = all_labels[train_val_index]
+        
+        word_test = [all_word_indices[i] for i in test_index]
+        y_test = all_labels[test_index]
+        
+        train_size = int(len(word_train_val) * 0.8)
+        word_train = word_train_val[:train_size]
+        y_train = y_train_val[:train_size]
+        word_val = word_train_val[train_size:]
+        y_val = y_train_val[train_size:]
+        
+        # Now, pad the sequences with the integer indices
+        word_train_padded, _ = pad_sequences_and_times_np(word_train, None, MAX_SEQUENCE_LENGTH)
+        word_val_padded, _ = pad_sequences_and_times_np(word_val, None, MAX_SEQUENCE_LENGTH)
+        word_test_padded, _ = pad_sequences_and_times_np(word_test, None, MAX_SEQUENCE_LENGTH)
 
-# Apply dense layer for binary classification
-output = Dense(1, activation='sigmoid')(lstm_output)
+        # Re-initialize and compile a new model for each fold
+        model = create_text_model(embedding_layer, MAX_SEQUENCE_LENGTH)
+        model.compile(loss='binary_crossentropy',
+                      optimizer='adam',
+                      metrics=['accuracy', tf.keras.metrics.Precision(), tf.keras.metrics.Recall(), tf.keras.metrics.AUC()])
+        
+        # Calculate class weights
+        y_train_flat = y_train.flatten()
+        class_weights = compute_class_weight('balanced', classes=np.unique(y_train_flat), y=y_train_flat)
+        class_weight_dict = {0: class_weights[0], 1: class_weights[1]}
+        
+        # Early stopping callback
+        callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
 
-# Build model
-model = Model(inputs=word_input, outputs=output, name='word_lstm_model')
+        # --- NEW: Define the ModelCheckpoint callback for this fold ---
+        checkpoint_path = os.path.join(model_save_dir, f"text_model_fold_{fold_number}.keras")
+        model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
+            filepath=checkpoint_path,
+            monitor='val_loss',
+            save_best_only=True,
+            mode='min'
+        )
 
-model.summary()
-# Create a word-to-index mapping from your vocab
-word_to_index = {word: i + 1 for i, word in enumerate(vocab)}
+        # Train the model
+        model.fit(word_train_padded, y_train,
+                  validation_data=(word_val_padded, y_val),
+                  epochs=25,
+                  batch_size=16,
+                  shuffle=True,
+                  callbacks=[callback, model_checkpoint_callback],
+                  class_weight=class_weight_dict)
+        
+        # Evaluate on the test data
+        eval_results = model.evaluate(word_test_padded, y_test)
+        all_eval_results.append(eval_results)
+        
+        print(f"Fold {fold_number} Test Results: {eval_results}")
+        fold_number += 1
 
-# Convert the NumPy arrays returned by `load_split` back to Python lists
-word_train_list = word_train.tolist()
-word_val_list = word_val.tolist()
-word_test_list = word_test.tolist()
+    # Calculate and print the average results across all folds
+    avg_results = np.mean(all_eval_results, axis=0)
+    std_results = np.std(all_eval_results, axis=0)
 
-# Flatten the lists and then convert words to their corresponding integer indices
-word_train_indices = [[word_to_index.get(w, 0) for sublist in utterance for w in (sublist if isinstance(sublist, list) else [sublist])] for utterance in word_train_list]
-word_val_indices = [[word_to_index.get(w, 0) for sublist in utterance for w in (sublist if isinstance(sublist, list) else [sublist])] for utterance in word_val_list]
-word_test_indices = [[word_to_index.get(w, 0) for sublist in utterance for w in (sublist if isinstance(sublist, list) else [sublist])] for utterance in word_test_list]
+    print("\n--- Final Results (Mean ± Std Dev) ---")
+    print(f"Loss: {avg_results[0]:.4f} ± {std_results[0]:.4f}")
+    print(f"Accuracy: {avg_results[1]:.4f} ± {std_results[1]:.4f}")
+    print(f"Precision: {avg_results[2]:.4f} ± {std_results[2]:.4f}")
+    print(f"Recall: {avg_results[3]:.4f} ± {std_results[3]:.4f}")
+    print(f"AUC: {avg_results[4]:.4f} ± {std_results[4]:.4f}")
 
-# Now, pad the sequences with the integer indices
-word_train_padded, time_train_padded = pad_sequences_and_times_np(word_train_indices, None, MAX_SEQUENCE_LENGTH)
-word_val_padded, time_val_padded = pad_sequences_and_times_np(word_val_indices, None, MAX_SEQUENCE_LENGTH)
-word_test_padded, time_test_padded = pad_sequences_and_times_np(word_test_indices, None, MAX_SEQUENCE_LENGTH)
+    print("\n✅ Finished all folds.")
 
-# Compile the model
-model.compile(loss='binary_crossentropy', 
-              optimizer='adam', 
-              metrics=['accuracy', tf.keras.metrics.Precision(), tf.keras.metrics.Recall(), tf.keras.metrics.AUC()])
-
-# Early stopping callback
-callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
-
-# Train the model
-model.fit(word_train_padded, y_train,
-          validation_data=(word_val_padded, y_val),
-          epochs=10,
-          batch_size=4,
-          shuffle=True,
-          callbacks=[callback])
-
-model.evaluate(word_test_padded, y_test)
-
-# Save locally in 'models' folder
-os.makedirs("models", exist_ok=True)
-# Save the model to the folder
-model.save(os.path.join("models", "text_model.keras"))
+    # --- ADDED: Code to find and save the single best model overall ---
+    eval_results_array = np.array(all_eval_results)
+    best_accuracy_index = np.argmax(eval_results_array[:, 1])
+    best_fold_number = best_accuracy_index + 1
+    
+    print("\n--- Identifying the Best Model ---")
+    print(f"✅ The overall best model was found in Fold {best_fold_number}.")
+    
+    # Load the best-performing model from its saved location
+    best_model_path = os.path.join(model_save_dir, f"text_model_fold_{best_fold_number}.keras")
+    best_model_for_prediction = tf.keras.models.load_model(best_model_path)
+    
+    # Save it to a new, more descriptive filename for final use
+    final_save_path = os.path.join(model_save_dir, "best_text_model_overall.keras")
+    best_model_for_prediction.save(final_save_path)
+    print(f"✅ The best model has been saved to: {final_save_path}")

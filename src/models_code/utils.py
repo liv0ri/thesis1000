@@ -1,15 +1,15 @@
-import os
 import numpy as np
-import pickle
 import soundfile as sf
-# import warnings
+import os
+import pickle
+import warnings
 
 def load_audio_file(file_path, target_length=16000):
     audio, sr = sf.read(file_path)
     
     # Handle multi-channel audio
     if audio.ndim > 1:
-        # warnings.warn(f"Audio file {file_path} has multiple channels. Using the first channel.")
+        warnings.warn(f"Audio file {file_path} has multiple channels. Using the first channel.")
         audio = audio[:, 0]
         
     if len(audio) > target_length:
@@ -18,22 +18,6 @@ def load_audio_file(file_path, target_length=16000):
         audio = np.pad(audio, (0, max(0, target_length - len(audio))))
         
     return audio.astype(np.float32)
-
-def _pad_nested_list(nested_list, max_outer_len, max_inner_len, pad_value=None):
-    padded_inner_list = []
-
-    for inner_list in nested_list:
-        # ensure inner_list is a list
-        if not isinstance(inner_list, list):
-            inner_list = [inner_list]  # wrap single items
-
-        padded_inner = inner_list + [pad_value] * (max_inner_len - len(inner_list))
-        padded_inner_list.append(padded_inner)
-
-    # Pad outer list
-    padded_outer_list = padded_inner_list + [[pad_value] * max_inner_len] * (max_outer_len - len(padded_inner_list))
-
-    return padded_outer_list
 
 
 def load_split(root_dir, target_length=16000, load_audio=True, load_words=True, load_times=True):
@@ -65,20 +49,22 @@ def load_split(root_dir, target_length=16000, load_audio=True, load_words=True, 
                 if os.path.exists(word_file_pkl):
                     with open(word_file_pkl, "rb") as f:
                         data = pickle.load(f)
-                        max_word_outer = max(max_word_outer, len(data))
-                        for inner_list in data:
-                            max_word_inner = max(max_word_inner, len(inner_list))
+                    
+                    # Flatten the nested list to get the max length of the final flattened list
+                    flattened_words = [w for sublist in data for w in sublist if isinstance(sublist, list) and w is not None]
+                    max_word_outer = max(max_word_outer, len(flattened_words))
             
             if load_times:
                 time_file_pkl = os.path.join(time_dir, f"{file_id}.pkl")
                 if os.path.exists(time_file_pkl):
                     with open(time_file_pkl, "rb") as f:
                         data = pickle.load(f)
-                        max_time_outer = max(max_time_outer, len(data))
-                        for inner_list in data:
-                            max_time_inner = max(max_time_inner, len(inner_list))
 
-    # --- Second Pass: Load, pad, and stack the data ---
+                    # Flatten the nested list to get the max length
+                    flattened_times = [t for sublist in data for t in sublist if isinstance(sublist, list)]
+                    max_time_outer = max(max_time_outer, len(flattened_times))
+
+    # --- Second Pass: Load, flatten, pad, and stack the data ---
     for label_name, label_val in label_map.items():
         wav_dir = os.path.join(split_dir, "wav", label_name)
         if not os.path.exists(wav_dir):
@@ -99,11 +85,10 @@ def load_split(root_dir, target_length=16000, load_audio=True, load_words=True, 
                 if os.path.exists(word_file_pkl):
                     with open(word_file_pkl, "rb") as f:
                         data = pickle.load(f)
-                        padded_data = _pad_nested_list(data, max_word_outer, max_word_inner, pad_value=None)
-                        all_word_lists.append(padded_data)
-                else:
-                    raise ValueError(f"Missing word file: {word_file_pkl}. Using placeholder.")
-
+                    
+                    # Flatten the nested list
+                    flattened_words = [w for sublist in data for w in sublist if isinstance(sublist, list) and w is not None]
+                    all_word_lists.append(flattened_words)
 
             if load_times:
                 time_dir = os.path.join(split_dir, "timestamps", label_name)
@@ -111,64 +96,43 @@ def load_split(root_dir, target_length=16000, load_audio=True, load_words=True, 
                 if os.path.exists(time_file_pkl):
                     with open(time_file_pkl, "rb") as f:
                         data = pickle.load(f)
-                        padded_data = _pad_nested_list(data, max_time_outer, max_time_inner, pad_value=[0, 0])
-                        all_time_lists.append(padded_data)
-                else:
-                    raise ValueError(f"Missing time file: {time_file_pkl}. Using placeholder.")
-                
+
+                    # Flatten the nested list
+                    flattened_times = [t for sublist in data for t in sublist if isinstance(sublist, list) and len(t) == 2]
+                    all_time_lists.append(flattened_times)
+            
     # Convert lists to numpy arrays for consistency
     audio_data = np.stack(audio_data) if audio_data else None
-    word_data = np.array(all_word_lists, dtype=object) if all_word_lists else None
-    time_data = np.array(all_time_lists, dtype=object) if all_time_lists else None
+    
+    # We will pad these sequences later on, after converting words to IDs
+    word_data = all_word_lists
+    time_data = all_time_lists
     labels = np.array(labels)
     
     return audio_data, word_data, time_data, labels
 
+# utils.py
+
+import numpy as np
+
 def pad_sequences_and_times_np(word_sequences=None, time_sequences=None, maxlen=100):
-    num_samples = 0
+    """Pads word and time sequences to a fixed length."""
+    num_samples = len(word_sequences) if word_sequences is not None else len(time_sequences)
+    padded_words_np = np.zeros((num_samples, maxlen), dtype="int32")
     if word_sequences is not None:
-        num_samples = len(word_sequences)
-    elif time_sequences is not None:
-        num_samples = len(time_sequences)
-    else:
-        raise ValueError("At least one of word_sequences or time_sequences must be provided.")
+        for i, seq in enumerate(word_sequences):
+            seq_len = min(len(seq), maxlen)
+            if seq_len > 0:
+                padded_words_np[i, :seq_len] = seq[:seq_len]
 
-    padded_words_np = None
-    padded_times_np = None
-
-    if word_sequences is not None:
-        padded_words_np = np.zeros((num_samples, maxlen), dtype="int32")
-
+    padded_times_np = np.zeros((num_samples, maxlen, 2), dtype="float32")
     if time_sequences is not None:
-        padded_times_np = np.zeros((num_samples, maxlen, 2), dtype="float32")
-
-    for i in range(num_samples):
-        if word_sequences is not None:
-            words = word_sequences[i]
-            cleaned_words = [w for w in words if w is not None and isinstance(w, int)]
-            seq_len = min(len(cleaned_words), maxlen)
+        for i, seq in enumerate(time_sequences):
+            seq_len = min(len(seq), maxlen)
             if seq_len > 0:
-                padded_words_np[i, :seq_len] = cleaned_words[:seq_len]
-
-        # --- times ---
-        if time_sequences is not None:
-            times = time_sequences[i]
-
-            # ensure each element is a flat [float, float]
-            cleaned_times = []
-            for t in times:
-                if t is None:
-                    continue
-                if isinstance(t, (list, tuple)) and len(t) == 1 and isinstance(t[0], (list, tuple)):
-                    t = t[0]
-                if isinstance(t, (list, tuple)) and len(t) == 2:
-                    try:
-                        cleaned_times.append([float(t[0]), float(t[1])])
-                    except (TypeError, ValueError):
-                        continue
-
-            seq_len = min(len(cleaned_times), maxlen)
-            if seq_len > 0:
-                padded_times_np[i, :seq_len, :] = np.array(cleaned_times[:seq_len], dtype="float32")
+                seq_array = np.array(seq[:seq_len], dtype="float32")
+                if seq_array.shape[1] != 2:
+                    raise ValueError(f"Expected shape (_,2), got {seq_array.shape}")
+                padded_times_np[i, :seq_len, :] = seq_array
     
     return padded_words_np, padded_times_np

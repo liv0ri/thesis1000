@@ -1,5 +1,8 @@
 import os
 
-TRAIN_PATH = os.path.join("pitt_split", "train")
-TEST_PATH = os.path.join("pitt_split", "test")
-VAL_PATH = os.path.join("pitt_split", "val")
+INPUT_BASE_PATH = "pitt_split1"
+PROCESSED_DATA_PATH = "processed_data.pkl"
+VOCAB_PATH = "vocab.pkl"
+WORD2VEC_PATH = "word2vec_vectors.pkl"
+MAX_SEQUENCE_LENGTH = 50
+TARGET_AUDIO_LENGTH = 16000

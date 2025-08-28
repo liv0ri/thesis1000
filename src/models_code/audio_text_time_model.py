@@ -1,118 +1,202 @@
 import os
+import pickle
+import numpy as np
 import tensorflow as tf
 from tensorflow.keras.layers import Input, Embedding, Concatenate, LSTM, Dense, Dropout, GlobalAveragePooling1D
 from tensorflow.keras.models import Model
-from wav2vec_feature_extractor import Wav2VecFeatureExtractor
-from utils import load_split, pad_sequences_and_times_np
-from config import TRAIN_PATH, TEST_PATH, VAL_PATH
-import pickle
+from sklearn.model_selection import KFold
+from sklearn.utils.class_weight import compute_class_weight
+from utils import pad_sequences_and_times_np
 from weights import Weights
+from tensorflow.keras.models import load_model
+from wav2vec_feature_extractor import Wav2VecFeatureExtractor
+from config import PROCESSED_DATA_PATH, VOCAB_PATH, WORD2VEC_PATH, MAX_SEQUENCE_LENGTH, TARGET_AUDIO_LENGTH
 
-MAX_SEQUENCE_LENGTH = 50
+# --- MODEL DEFINITION ---
+def create_combined_model(embedding_layer, max_sequence_length, audio_input_shape):
+    """Defines and returns the combined audio and word/time model."""
+    # Audio model branch
+    model_checkpoint = "facebook/wav2vec2-base"
+    audio_input = Input(shape=audio_input_shape, dtype=tf.float32)
+    audio_features = Wav2VecFeatureExtractor(model_checkpoint)(audio_input)
+    audio_output = GlobalAveragePooling1D()(audio_features)
+    audio_output = Dropout(0.5)(audio_output)
+    audio_model = Model(inputs=audio_input, outputs=audio_output, name="audio_model")
+    audio_model.summary()
+    # Word/Time model branch
+    word_input = Input(shape=(max_sequence_length,), dtype=tf.int32)
+    time_stamps = Input(shape=(max_sequence_length, 2), dtype=tf.float32)
+    word_embedded = embedding_layer(word_input)
+    concatenated = Concatenate()([word_embedded, time_stamps])
+    lstm_output = LSTM(16, dropout=0.2, recurrent_dropout=0.2)(concatenated)
+    word_time_model = Model(inputs=[word_input, time_stamps], outputs=lstm_output, name="word_model")
 
-audio_train, word_train, time_train, y_train = load_split(TRAIN_PATH)
-audio_val, word_val, time_val, y_val = load_split(VAL_PATH)
-audio_test, word_test, time_test, y_test = load_split(TEST_PATH)
+    # Concatenate the outputs
+    combined_output = Concatenate()([audio_model.output, word_time_model.output])
+    final_output = Dense(1, activation='sigmoid')(combined_output)
 
-# Load the pre-trained Wav2Vec model using the Hugging Face interface
-model_checkpoint = "facebook/wav2vec2-base"
+    # Build the combined model
+    combined_model = Model(
+        inputs=[audio_model.input, *word_time_model.input],
+        outputs=final_output,
+        name="combined_model"
+    )
+    return combined_model
 
-# Define the inputs to the model
-audio_input = Input(shape=(16000,), dtype=tf.float32)
+if __name__ == "__main__":
+    if not os.path.exists(PROCESSED_DATA_PATH):
+        raise FileNotFoundError("Processed data not found. Please run split_data.py first.")
+    with open(PROCESSED_DATA_PATH, "rb") as f:
+        data_points = pickle.load(f)
 
-# Use the Wav2Vec feature extractor to get audio features
-audio_features = Wav2VecFeatureExtractor(model_checkpoint)(audio_input)
-# Apply global average pooling to the audio features
-audio_output = GlobalAveragePooling1D()(audio_features)
-# Add a dropout layer for regularization
-audio_output = Dropout(0.5)(audio_output)
+    all_audios = np.stack([d['audio'] for d in data_points])
+    all_words = [d['words'] for d in data_points]
+    all_times = [d['word_times'] for d in data_points]
+    all_labels = np.array([1 if d['label'] == 'dementia' else 0 for d in data_points])
 
-# Create the TensorFlow functional API model for audio
-audio_model = Model(inputs=audio_input, outputs=audio_output, name="audio_model")
-audio_model.summary()
+    if not os.path.exists(VOCAB_PATH) or not os.path.exists(WORD2VEC_PATH):
+        raise FileNotFoundError("Vocab or Word2Vec vectors not found. Please run build_vocab.py first.")
+    with open(VOCAB_PATH, "rb") as f:
+        vocab = pickle.load(f)
+    with open(WORD2VEC_PATH, "rb") as f:
+        word2vec_vectors = pickle.load(f)
+    
+    word_to_id = {word: i for i, word in enumerate(vocab)}
+    all_word_ids = [[word_to_id.get(w, 0) for w in sentence] for sentence in all_words]
 
-# Load the pre-processed vocabulary and word2vec vectors
-with open(os.path.join("pitt_split", "vocab.pkl"), "rb") as f:
-    vocab = pickle.load(f)
+    weight = Weights(vocab, word2vec_vectors)
+    embedding_vectors = weight.get_weight_matrix()
+    embedding_dim = embedding_vectors.shape[1]
+    
+    embedding_layer = Embedding(input_dim=len(vocab) + 1,
+                                output_dim=embedding_dim,
+                                weights=[embedding_vectors],
+                                input_length=MAX_SEQUENCE_LENGTH,
+                                trainable=False)
 
-with open(os.path.join("pitt_split", "word2vec_vectors.pkl"), "rb") as f:
-    word2vec_vectors = pickle.load(f)
+    # Cross-validation setup
+    kf = KFold(n_splits=5, shuffle=True, random_state=42)
+    all_eval_results = []
+    fold_number = 1
 
-weight = Weights(vocab, word2vec_vectors)
-embedding_vectors = weight.get_weight_matrix()
+    # Loop through each of the 5 folds
+    for train_val_index, test_index in kf.split(all_word_ids):
+        print(f"\n--- Starting Fold {fold_number}/5 ---")
 
-# Determine the embedding dimension dynamically from the prepared matrix
-embedding_dim = embedding_vectors.shape[1]
+        # Create train/val/test splits for this fold
+        audio_train_val = all_audios[train_val_index]
+        word_train_val = [all_word_ids[i] for i in train_val_index]
+        time_train_val = [all_times[i] for i in train_val_index]
+        y_train_val = all_labels[train_val_index]
 
-# Create the embedding layer with the pre-trained weights
-embedding_layer = Embedding(input_dim=len(vocab) + 1,
-                            output_dim=embedding_dim,
-                            weights=[embedding_vectors],
-                            input_length=MAX_SEQUENCE_LENGTH,
-                            trainable=False) # Set to False to prevent re-training of pre-trained weights
+        audio_test = all_audios[test_index]
+        word_test = [all_word_ids[i] for i in test_index]
+        time_test = [all_times[i] for i in test_index]
+        y_test = all_labels[test_index]
 
-# Define the inputs for the word and time model
-word_input = Input(shape=(MAX_SEQUENCE_LENGTH,), dtype=tf.int32)
-time_stamps = Input(shape=(MAX_SEQUENCE_LENGTH, 2), dtype=tf.float32)
+        train_size = int(len(word_train_val) * 0.8)
+        audio_train = audio_train_val[:train_size]
+        word_train = word_train_val[:train_size]
+        time_train = time_train_val[:train_size]
+        y_train = y_train_val[:train_size]
+        audio_val = audio_train_val[train_size:]
+        word_val = word_train_val[train_size:]
+        time_val = time_train_val[train_size:]
+        y_val = y_train_val[train_size:]
+        
+        # Pad the sequences
+        word_train_padded, time_train_padded = pad_sequences_and_times_np(word_train, time_train, MAX_SEQUENCE_LENGTH)
+        word_val_padded, time_val_padded = pad_sequences_and_times_np(word_val, time_val, MAX_SEQUENCE_LENGTH)
+        word_test_padded, time_test_padded = pad_sequences_and_times_np(word_test, time_test, MAX_SEQUENCE_LENGTH)
+        
+        # Standardize time features
+        time_mean = time_train_padded.mean(axis=(0,1))
+        time_std = time_train_padded.std(axis=(0,1))
+        time_train_padded = (time_train_padded - time_mean) / (time_std + 1e-8)
+        time_val_padded = (time_val_padded - time_mean) / (time_std + 1e-8)
+        time_test_padded = (time_test_padded - time_mean) / (time_std + 1e-8)
+        
+        # Re-initialize and compile a new model for each fold
+        model = create_combined_model(embedding_layer, MAX_SEQUENCE_LENGTH, audio_input_shape=(TARGET_AUDIO_LENGTH,))
+        model.compile(loss='binary_crossentropy',
+                      optimizer='adam',
+                      metrics=['accuracy', tf.keras.metrics.Precision(), tf.keras.metrics.Recall(), tf.keras.metrics.AUC()])
+        
+        # Calculate class weights
+        y_train_flat = y_train.flatten()
+        class_weights = compute_class_weight('balanced', classes=np.unique(y_train_flat), y=y_train_flat)
+        class_weight_dict = {0: class_weights[0], 1: class_weights[1]}
+        # decreased a bit the patience for faster computation
+        callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
 
-# Embed word and pos inputs
-word_embedded = embedding_layer(word_input)
+        # Create a directory to save the models
+        model_save_dir = "models"
+        os.makedirs(model_save_dir, exist_ok=True)
+                
+        # Define the ModelCheckpoint callback to save the best model for this fold
+        checkpoint_path = os.path.join(model_save_dir, f"audio_text_time_model_fold_{fold_number}.keras")
+        model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
+            filepath=checkpoint_path,
+            monitor='val_loss',
+            save_best_only=True,
+            mode='min'
+        )
+        model.fit(x=[audio_train, word_train_padded, time_train_padded], y=y_train,
+                  validation_data=([audio_val, word_val_padded, time_val_padded], y_val),
+                  epochs=25,
+                  batch_size=16,
+                  shuffle=True,
+                  callbacks=[callback, model_checkpoint_callback],
+                  class_weight=class_weight_dict)
+        
+        model.summary()
 
-# Concatenate word and pos embeddings
-concatenated = Concatenate()([word_embedded, time_stamps])
-# Apply LSTM layer
-lstm_output = LSTM(16, dropout=0.2, recurrent_dropout=0.2)(concatenated)
-# Define the model
-word_time_model = Model(inputs=[word_input, time_stamps], outputs=lstm_output, name="word_model")
+        # Evaluate on the test data
+        eval_results = model.evaluate([audio_test, word_test_padded, time_test_padded], y_test)
+        all_eval_results.append(eval_results)
+        
+        print(f"Fold {fold_number} Test Results: {eval_results}")
+        fold_number += 1
 
-word_time_model.summary()
+    # Calculate and print the average results across all folds
+    avg_results = np.mean(all_eval_results, axis=0)
+    std_results = np.std(all_eval_results, axis=0)
 
-# Concatenate the outputs of the audio and word/time models
-combined_output = Concatenate()([audio_model.output, word_time_model.output])
+    print("\n--- Final Results (Mean ± Std Dev) ---")
+    print(f"Loss: {avg_results[0]:.4f} ± {std_results[0]:.4f}")
+    print(f"Accuracy: {avg_results[1]:.4f} ± {std_results[1]:.4f}")
+    print(f"Precision: {avg_results[2]:.4f} ± {std_results[2]:.4f}")
+    print(f"Recall: {avg_results[3]:.4f} ± {std_results[3]:.4f}")
+    print(f"AUC: {avg_results[4]:.4f} ± {std_results[4]:.4f}")
 
-# Add a final dense layer for classification
-final_output = Dense(1, activation='sigmoid')(combined_output)
+    print("\n✅ Finished all folds.")
+    eval_results_array = np.array(all_eval_results)
 
-# Build the combined model
-combined_model = Model(
-    inputs=[audio_model.input, *word_time_model.input],  # unpack list
-    outputs=final_output,
-    name="combined_model"
-)
+    # The accuracy metric is at index 1 in the evaluation results list
+    accuracy_results = eval_results_array[:, 1]
 
-combined_model.summary()
-# Pad the training, validation, and test data
-# Create a word-to-index mapping from your vocab
-word_to_index = {word: i + 1 for i, word in enumerate(vocab)}
+    # Find the index of the fold with the highest accuracy
+    best_accuracy_index = np.argmax(accuracy_results)
 
-# Convert word lists to index lists
-word_train_indices = [[word_to_index.get(w, 0) for w in utterance] for utterance in word_train]
-word_val_indices = [[word_to_index.get(w, 0) for w in utterance] for utterance in word_val]
-word_test_indices = [[word_to_index.get(w, 0) for w in utterance] for utterance in word_test]
+    # The fold number is the index plus 1
+    best_fold_number = best_accuracy_index + 1
 
-# Now, pad the sequences with the integer indices
-word_train_padded, time_train_padded = pad_sequences_and_times_np(word_train_indices, time_train, MAX_SEQUENCE_LENGTH)
-word_val_padded, time_val_padded = pad_sequences_and_times_np(word_val_indices, time_val, MAX_SEQUENCE_LENGTH)
-word_test_padded, time_test_padded = pad_sequences_and_times_np(word_test_indices, time_test, MAX_SEQUENCE_LENGTH)
+    # Print the results for clarity
+    print("\n--- Identifying the Best Model ---")
+    print(f"✅ The best model was found in Fold {best_fold_number} with an accuracy of {accuracy_results[best_accuracy_index]:.4f}")
 
-# Prepare data for training/validation/testing (flattened, not nested)
-combined_train_inputs = [audio_train, word_train_padded, time_train_padded]
-combined_val_inputs = [audio_val, word_val_padded, time_val_padded]
-combined_test_inputs = [audio_test, word_test_padded, time_test_padded]
-combined_model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy', tf.keras.metrics.Precision(), tf.keras.metrics.Recall(), tf.keras.metrics.AUC()])
-callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss',
-                                            patience=10,
-                                            restore_best_weights=True)
-                                            
-# Train the model
-combined_model.fit(combined_train_inputs, y_train,
-                   epochs=50, batch_size=16, 
-                   validation_data=(combined_val_inputs, y_val),
-                   callbacks=[callback])
+    # Construct the file path for the best model
+    best_model_path = os.path.join(model_save_dir, f"audio_text_time_model_fold_{best_fold_number}.keras")
 
-combined_model.evaluate(combined_test_inputs, y_test)
+    # Load the best-performing model
+    try:
+        best_model_for_prediction = load_model(best_model_path)
+        print("✅ Successfully loaded the best model.")
+        
+        # Save the best model to a new, more descriptive file name
+        final_save_path = os.path.join(model_save_dir, "best_model_audio_text_time.keras")
+        best_model_for_prediction.save(final_save_path)
+        print(f"✅ The best model has been saved to: {final_save_path}")
 
-# Create the directory to save the model if it doesn't exist
-os.makedirs("models", exist_ok=True)
-
-combined_model.save(os.path.join("models", "audio_word_time_model.keras"))
+    except Exception as e:
+        print(f"❌ Error loading or saving the model: {e}")

@@ -3,6 +3,10 @@ __pycache__/
 *.so
 *.ipynb_checkpoints
 
+processed_data.pkl
+vocab.pkl
+word2vec_vectors.pkl
+
 # Model checkpoints and logs
 models/
 *.keras
