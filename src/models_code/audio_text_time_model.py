@@ -1,5 +1,4 @@
 import os
-import numpy as np
 import tensorflow as tf
 from tensorflow.keras.layers import Input, Embedding, Concatenate, LSTM, Dense, Dropout, GlobalAveragePooling1D
 from tensorflow.keras.models import Model
@@ -82,11 +81,19 @@ combined_model = Model(
 )
 
 combined_model.summary()
-
 # Pad the training, validation, and test data
-word_train_padded, time_train_padded = pad_sequences_and_times_np(word_train, time_train, MAX_SEQUENCE_LENGTH)
-word_val_padded, time_val_padded = pad_sequences_and_times_np(word_val, time_val, MAX_SEQUENCE_LENGTH)
-word_test_padded, time_test_padded = pad_sequences_and_times_np(word_test, time_test, MAX_SEQUENCE_LENGTH)
+# Create a word-to-index mapping from your vocab
+word_to_index = {word: i + 1 for i, word in enumerate(vocab)}
+
+# Convert word lists to index lists
+word_train_indices = [[word_to_index.get(w, 0) for w in utterance] for utterance in word_train]
+word_val_indices = [[word_to_index.get(w, 0) for w in utterance] for utterance in word_val]
+word_test_indices = [[word_to_index.get(w, 0) for w in utterance] for utterance in word_test]
+
+# Now, pad the sequences with the integer indices
+word_train_padded, time_train_padded = pad_sequences_and_times_np(word_train_indices, time_train, MAX_SEQUENCE_LENGTH)
+word_val_padded, time_val_padded = pad_sequences_and_times_np(word_val_indices, time_val, MAX_SEQUENCE_LENGTH)
+word_test_padded, time_test_padded = pad_sequences_and_times_np(word_test_indices, time_test, MAX_SEQUENCE_LENGTH)
 
 # Prepare data for training/validation/testing (flattened, not nested)
 combined_train_inputs = [audio_train, word_train_padded, time_train_padded]

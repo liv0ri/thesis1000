@@ -2,14 +2,14 @@ import os
 import numpy as np
 import pickle
 import soundfile as sf
-import warnings
+# import warnings
 
 def load_audio_file(file_path, target_length=16000):
     audio, sr = sf.read(file_path)
     
     # Handle multi-channel audio
     if audio.ndim > 1:
-        warnings.warn(f"Audio file {file_path} has multiple channels. Using the first channel.")
+        # warnings.warn(f"Audio file {file_path} has multiple channels. Using the first channel.")
         audio = audio[:, 0]
         
     if len(audio) > target_length:
@@ -20,16 +20,21 @@ def load_audio_file(file_path, target_length=16000):
     return audio.astype(np.float32)
 
 def _pad_nested_list(nested_list, max_outer_len, max_inner_len, pad_value=None):
-    # Pad inner lists
     padded_inner_list = []
+
     for inner_list in nested_list:
+        # ensure inner_list is a list
+        if not isinstance(inner_list, list):
+            inner_list = [inner_list]  # wrap single items
+
         padded_inner = inner_list + [pad_value] * (max_inner_len - len(inner_list))
         padded_inner_list.append(padded_inner)
-    
+
     # Pad outer list
     padded_outer_list = padded_inner_list + [[pad_value] * max_inner_len] * (max_outer_len - len(padded_inner_list))
-    
+
     return padded_outer_list
+
 
 def load_split(root_dir, target_length=16000, load_audio=True, load_words=True, load_times=True):
     split_dir = root_dir
@@ -101,7 +106,7 @@ def load_split(root_dir, target_length=16000, load_audio=True, load_words=True, 
 
 
             if load_times:
-                time_dir = os.path.join(split_dir, "time", label_name)
+                time_dir = os.path.join(split_dir, "timestamps", label_name)
                 time_file_pkl = os.path.join(time_dir, f"{file_id}.pkl")
                 if os.path.exists(time_file_pkl):
                     with open(time_file_pkl, "rb") as f:
@@ -165,5 +170,5 @@ def pad_sequences_and_times_np(word_sequences=None, time_sequences=None, maxlen=
             seq_len = min(len(cleaned_times), maxlen)
             if seq_len > 0:
                 padded_times_np[i, :seq_len, :] = np.array(cleaned_times[:seq_len], dtype="float32")
-
+    
     return padded_words_np, padded_times_np

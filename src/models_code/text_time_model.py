@@ -7,6 +7,7 @@ from weights import Weights
 from utils import load_split, pad_sequences_and_times_np
 import pickle
 from config import TRAIN_PATH, TEST_PATH, VAL_PATH
+from sklearn.utils.class_weight import compute_class_weight
 
 # Define a constant for the maximum sequence length for padding
 MAX_SEQUENCE_LENGTH = 50
@@ -72,12 +73,25 @@ word_test_padded, time_test_padded = pad_sequences_and_times_np(word_test, time_
 # Train with EarlyStopping
 callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
 
+# Calculate class weights to handle imbalance
+# Convert to a flat array first for compute_class_weight
+y_train_flat = y_train.flatten()
+class_weights = compute_class_weight(
+    'balanced',
+    classes=np.unique(y_train_flat),
+    y=y_train_flat
+)
+
+# Convert the weights to a dictionary format for the model
+class_weight_dict = {0: class_weights[0], 1: class_weights[1]}
+
 model.fit([word_train_padded, time_train_padded], y_train,
           validation_data=([word_val_padded, time_val_padded], y_val),
           epochs=50,
           batch_size=16,
           shuffle=True,
-          callbacks=[callback])
+          callbacks=[callback],
+          class_weight=class_weight_dict)
 
 # Evaluate on test data
 model.evaluate([word_test_padded, time_test_padded], y_test)

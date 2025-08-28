@@ -54,11 +54,23 @@ output = Dense(1, activation='sigmoid')(lstm_output)
 model = Model(inputs=word_input, outputs=output, name='word_lstm_model')
 
 model.summary()
+# Create a word-to-index mapping from your vocab
+word_to_index = {word: i + 1 for i, word in enumerate(vocab)}
 
-# Pad the training, validation, and test data
-word_train_padded, _ = pad_sequences_and_times_np(word_train, None, MAX_SEQUENCE_LENGTH)
-word_val_padded, _ = pad_sequences_and_times_np(word_val, None, MAX_SEQUENCE_LENGTH)
-word_test_padded, _ = pad_sequences_and_times_np(word_test, None, MAX_SEQUENCE_LENGTH)
+# Convert the NumPy arrays returned by `load_split` back to Python lists
+word_train_list = word_train.tolist()
+word_val_list = word_val.tolist()
+word_test_list = word_test.tolist()
+
+# Flatten the lists and then convert words to their corresponding integer indices
+word_train_indices = [[word_to_index.get(w, 0) for sublist in utterance for w in (sublist if isinstance(sublist, list) else [sublist])] for utterance in word_train_list]
+word_val_indices = [[word_to_index.get(w, 0) for sublist in utterance for w in (sublist if isinstance(sublist, list) else [sublist])] for utterance in word_val_list]
+word_test_indices = [[word_to_index.get(w, 0) for sublist in utterance for w in (sublist if isinstance(sublist, list) else [sublist])] for utterance in word_test_list]
+
+# Now, pad the sequences with the integer indices
+word_train_padded, time_train_padded = pad_sequences_and_times_np(word_train_indices, None, MAX_SEQUENCE_LENGTH)
+word_val_padded, time_val_padded = pad_sequences_and_times_np(word_val_indices, None, MAX_SEQUENCE_LENGTH)
+word_test_padded, time_test_padded = pad_sequences_and_times_np(word_test_indices, None, MAX_SEQUENCE_LENGTH)
 
 # Compile the model
 model.compile(loss='binary_crossentropy', 
