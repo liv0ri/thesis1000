@@ -6,18 +6,17 @@ from tensorflow.keras.layers import Input, Embedding, Concatenate, LSTM, Dense
 from tensorflow.keras.models import Model
 from sklearn.model_selection import KFold
 from sklearn.utils.class_weight import compute_class_weight
+from tensorflow.keras.models import load_model
 
 # Import helper functions and classes from your other files
 from utils import pad_sequences_and_times_np
 from weights import Weights
 
-# --- CONFIG ---
 PROCESSED_DATA_PATH = "processed_data.pkl"
 VOCAB_PATH = "vocab.pkl"
 WORD2VEC_PATH = "word2vec_vectors.pkl"
 MAX_SEQUENCE_LENGTH = 50
 
-# --- MODEL DEFINITION ---
 def create_model(embedding_layer, max_sequence_length):
     word_input = Input(shape=(max_sequence_length,), name='word_input', dtype=tf.int32)
     time_stamps = Input(shape=(max_sequence_length, 2), name='time_input', dtype=tf.float32)
@@ -30,7 +29,7 @@ def create_model(embedding_layer, max_sequence_length):
 
 if __name__ == "__main__":
     if not os.path.exists(PROCESSED_DATA_PATH):
-        raise FileNotFoundError("Processed data not found. Please run split_data.py first.")
+        raise FileNotFoundError("Processed data not found. Please run the data preparation script first.")
     with open(PROCESSED_DATA_PATH, "rb") as f:
         data_points = pickle.load(f)
 
@@ -39,7 +38,7 @@ if __name__ == "__main__":
     all_labels = np.array([1 if d['label'] == 'dementia' else 0 for d in data_points])
 
     if not os.path.exists(VOCAB_PATH) or not os.path.exists(WORD2VEC_PATH):
-        raise FileNotFoundError("Vocab or Word2Vec vectors not found. Please run build_vocab.py first.")
+        raise FileNotFoundError("Vocab or Word2Vec vectors not found. Please run the build_vocab script first.")
     with open(VOCAB_PATH, "rb") as f:
         vocab = pickle.load(f)
     with open(WORD2VEC_PATH, "rb") as f:
@@ -62,6 +61,9 @@ if __name__ == "__main__":
     kf = KFold(n_splits=5, shuffle=True, random_state=42)
     all_eval_results = []
     fold_number = 1
+    
+    model_save_dir = "models"
+    os.makedirs(model_save_dir, exist_ok=True)
 
     # Loop through each of the 5 folds
     for train_val_index, test_index in kf.split(all_word_ids):
@@ -106,7 +108,17 @@ if __name__ == "__main__":
         y_train_flat = y_train.flatten()
         class_weights = compute_class_weight('balanced', classes=np.unique(y_train_flat), y=y_train_flat)
         class_weight_dict = {0: class_weights[0], 1: class_weights[1]}
-        callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
+        
+        # Early stopping callback
+        callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
+        
+        checkpoint_path = os.path.join(model_save_dir, f"text_time_model_fold_{fold_number}.keras")
+        model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
+            filepath=checkpoint_path,
+            monitor='val_loss',
+            save_best_only=True,
+            mode='min'
+        )
 
         # Train the model
         model.fit([word_train_padded, time_train_padded], y_train,
@@ -114,10 +126,10 @@ if __name__ == "__main__":
                   epochs=25,
                   batch_size=16,
                   shuffle=True,
-                  callbacks=[callback],
+                  callbacks=[callback, model_checkpoint_callback], # ADDED callback
                   class_weight=class_weight_dict,
                   verbose=0)
-
+        
         eval_results = model.evaluate([word_test_padded, time_test_padded], y_test)
         all_eval_results.append(eval_results)
         
@@ -136,3 +148,19 @@ if __name__ == "__main__":
     print(f"AUC: {avg_results[4]:.4f} ± {std_results[4]:.4f}")
 
     print("\n✅ Finished all folds.")
+
+    eval_results_array = np.array(all_eval_results)
+    best_accuracy_index = np.argmax(eval_results_array[:, 1])
+    best_fold_number = best_accuracy_index + 1
+    
+    print("\n--- Identifying the Best Model ---")
+    print(f"✅ The overall best model was found in Fold {best_fold_number}.")
+    
+    # Load the best-performing model from its saved location
+    best_model_path = os.path.join(model_save_dir, f"text_time_model_fold_{best_fold_number}.keras")
+    best_model_for_prediction = load_model(best_model_path)
+    
+    # Save it to a new, more descriptive filename for final use
+    final_save_path = os.path.join(model_save_dir, "best_text_time_model_overall.keras")
+    best_model_for_prediction.save(final_save_path)
+    print(f"✅ The best model has been saved to: {final_save_path}")

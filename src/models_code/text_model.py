@@ -7,10 +7,11 @@ from tensorflow.keras.models import Model
 from sklearn.model_selection import KFold
 from sklearn.utils.class_weight import compute_class_weight
 from weights import Weights
-from utils import load_split, pad_sequences_and_times_np
-from config import TRAIN_PATH
+from utils import pad_sequences_and_times_np
 
-# Define the maximum sequence length for padding
+PROCESSED_DATA_PATH = "processed_data.pkl"
+VOCAB_PATH = "vocab.pkl"
+WORD2VEC_PATH = "word2vec_vectors.pkl"
 MAX_SEQUENCE_LENGTH = 50
 
 # --- MODEL DEFINITION ---
@@ -25,14 +26,24 @@ def create_text_model(embedding_layer, max_sequence_length):
 
 # --- MAIN EXECUTION BLOCK ---
 if __name__ == "__main__":
-    # Load all data at once for cross-validation
-    all_audios, all_words, all_times, all_labels = load_split(TRAIN_PATH, load_audio=False, load_times=False)
-    
-    with open(os.path.join("pitt_split", "vocab.pkl"), "rb") as f:
+    print("Loading all processed data...")
+    if not os.path.exists(PROCESSED_DATA_PATH):
+        raise FileNotFoundError("Processed data not found. Please run the data preparation script first.")
+    with open(PROCESSED_DATA_PATH, "rb") as f:
+        data_points = pickle.load(f)
+
+    # Extract all words and labels from the full dataset
+    all_words = [d['words'] for d in data_points]
+    all_labels = np.array([1 if d['label'] == 'dementia' else 0 for d in data_points])
+
+    print("Loading vocabulary and word embeddings...")
+    if not os.path.exists(VOCAB_PATH) or not os.path.exists(WORD2VEC_PATH):
+        raise FileNotFoundError("Vocab or Word2Vec vectors not found. Please run the build_vocab script first.")
+    with open(VOCAB_PATH, "rb") as f:
         data = f.read()
     vocab = pickle.loads(data)
 
-    with open(os.path.join("pitt_split", "word2vec_vectors.pkl"), "rb") as f:
+    with open(WORD2VEC_PATH, "rb") as f:
         word2vec_vectors = pickle.load(f)
 
     # Prepare embedding matrix from your weights class
@@ -93,9 +104,8 @@ if __name__ == "__main__":
         class_weight_dict = {0: class_weights[0], 1: class_weights[1]}
         
         # Early stopping callback
-        callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
+        callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
 
-        # --- NEW: Define the ModelCheckpoint callback for this fold ---
         checkpoint_path = os.path.join(model_save_dir, f"text_model_fold_{fold_number}.keras")
         model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
             filepath=checkpoint_path,
@@ -124,7 +134,6 @@ if __name__ == "__main__":
     avg_results = np.mean(all_eval_results, axis=0)
     std_results = np.std(all_eval_results, axis=0)
 
-    print("\n--- Final Results (Mean ± Std Dev) ---")
     print(f"Loss: {avg_results[0]:.4f} ± {std_results[0]:.4f}")
     print(f"Accuracy: {avg_results[1]:.4f} ± {std_results[1]:.4f}")
     print(f"Precision: {avg_results[2]:.4f} ± {std_results[2]:.4f}")
@@ -133,7 +142,7 @@ if __name__ == "__main__":
 
     print("\n✅ Finished all folds.")
 
-    # --- ADDED: Code to find and save the single best model overall ---
+    # Find and save the single best model overall
     eval_results_array = np.array(all_eval_results)
     best_accuracy_index = np.argmax(eval_results_array[:, 1])
     best_fold_number = best_accuracy_index + 1

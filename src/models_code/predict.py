@@ -20,7 +20,7 @@ print("Loading audio_model...")
 audio_new = np.random.randn(1, 16000).astype(np.float32)
 
 # Load the saved model
-loaded_audio_model = tf.keras.models.load_model(os.path.join("models", "audio_model.keras"))
+loaded_audio_model = tf.keras.models.load_model(os.path.join("models", "best_audio_model_overall.keras"))
 
 # Make a prediction
 prediction = loaded_audio_model.predict(audio_new)
@@ -43,7 +43,7 @@ word_new = np.clip(word_new, 0, 101 - 1)
 time_new = np.random.randn(1, 50, 2).astype(np.float32)
 
 # Load the saved model
-loaded_word_time_model = tf.keras.models.load_model(os.path.join("models", "word_time_model.keras"))
+loaded_word_time_model = tf.keras.models.load_model(os.path.join("models", "best_word_time_model_overall.keras"))
 
 # The inputs must be a list
 prediction = loaded_word_time_model.predict([word_new, time_new])
@@ -64,7 +64,7 @@ word_new = np.random.randint(1, len(vocab) + 1, size=(1, 50))
 word_new = np.clip(word_new, 0, 101 - 1)
 
 # Load the saved model
-loaded_text_model = tf.keras.models.load_model(os.path.join("models", "text_model.keras"))
+loaded_text_model = tf.keras.models.load_model(os.path.join("models", "best_text_model_overall.keras"))
 
 # Make a prediction
 prediction_prob = loaded_text_model.predict(word_new)
@@ -85,7 +85,7 @@ audio_new = np.random.randn(1, 16000).astype(np.float32)
 time_new = np.random.randn(1, 50, 2).astype(np.float32)
 
 # Load the saved model
-loaded_audio_time_model = tf.keras.models.load_model(os.path.join("models", "audio_time_model.keras"))
+loaded_audio_time_model = tf.keras.models.load_model(os.path.join("models", "best_audio_time_model_overall.keras"))
 
 # The inputs must be a list
 prediction = loaded_audio_time_model.predict([audio_new, time_new])
@@ -107,7 +107,7 @@ word_new = np.random.randint(1, len(vocab) + 1, size=(1, 50))
 
 # IMPORTANT: The custom Wav2VecFeatureExtractor must be in scope
 # when loading the model. We pass it via the custom_objects dictionary.
-loaded_audio_word_model = tf.keras.models.load_model(os.path.join("models", "audio_word_model.keras")    )
+loaded_audio_word_model = tf.keras.models.load_model(os.path.join("models", "best_audio_word_model_overall.keras")    )
 
 # Make a prediction by passing the inputs as a list
 prediction = loaded_audio_word_model.predict([audio_new, word_new])
@@ -131,7 +131,7 @@ word_new = np.random.randint(1, len(vocab), size=(1, 50)).astype(np.int32)
 word_new = np.clip(word_new, 0, 101 - 1)
 time_new = np.random.randn(1, 50, 2).astype(np.float32)
 
-loaded_combined_model = tf.keras.models.load_model(os.path.join("models", "audio_word_time_model.keras"))
+loaded_combined_model = tf.keras.models.load_model(os.path.join("models", "best_audio_word_time_model_overall.keras"))
 
 # Pass all inputs as a flat list
 prediction = loaded_combined_model.predict([audio_new, word_new, time_new])

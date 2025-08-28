@@ -3,23 +3,32 @@ import tensorflow as tf
 import os
 import pickle
 from tensorflow.keras.layers import Dense, LSTM, Dropout, Input, GlobalAveragePooling1D, Concatenate, Embedding
-from tensorflow.keras.models import Model
+from tensorflow.keras.models import Model, load_model
 from sklearn.model_selection import KFold
 from sklearn.utils.class_weight import compute_class_weight
 
 # Import helper functions and classes from your other files
 from wav2vec_feature_extractor import Wav2VecFeatureExtractor
-from utils import load_split, pad_sequences_and_times_np
-from config import TRAIN_PATH
+from utils import pad_sequences_and_times_np
 from weights import Weights
 
+# --- CONFIG ---
+PROCESSED_DATA_PATH = "processed_data.pkl"
+VOCAB_PATH = "vocab.pkl"
+WORD2VEC_PATH = "word2vec_vectors.pkl"
 MAX_SEQUENCE_LENGTH = 50
 
 def create_audio_word_model(embedding_layer, max_sequence_length):
+    """
+    Defines and returns the multimodal audio-word Keras model.
+    It combines a Wav2Vec branch for audio features and an LSTM branch for word embeddings.
+    """
     model_checkpoint = "facebook/wav2vec2-base"
     audio_input = Input(shape=(16000,), name="audio_input")
 
     # Audio model branch
+    # The Wav2VecFeatureExtractor is a Keras Layer that processes raw audio
+    # and extracts high-level features, which are then pooled.
     wav2vec_extractor = Wav2VecFeatureExtractor(model_checkpoint)
     audio_features = wav2vec_extractor(audio_input)
     audio_pooled = GlobalAveragePooling1D()(audio_features)
@@ -28,27 +37,36 @@ def create_audio_word_model(embedding_layer, max_sequence_length):
     audio_model.summary()
     
     # Word model branch
+    # This branch uses a pre-trained word embedding layer and an LSTM to process text.
     word_input = Input(shape=(max_sequence_length,), dtype=tf.int32, name="word_input")
     word_embedded = embedding_layer(word_input)
     word_lstm = LSTM(16, dropout=0.2, recurrent_dropout=0.2)(word_embedded)
     word_model = Model(inputs=word_input, outputs=word_lstm, name='word_model')
 
-    # Concatenate the outputs
+    # Concatenate the outputs of the two branches to create the multimodal model
     combined = Concatenate()([audio_model.output, word_model.output])
     combined_output = Dense(1, activation='sigmoid')(combined)
     
-    # Build the combined model
+    # Build the combined model with both audio and word inputs
     audio_word_model = Model(inputs=[audio_model.input, word_model.input], outputs=combined_output, name='audio_word_model')
     return audio_word_model
 
 if __name__ == "__main__":
-    # It is assumed that the `load_split` function loads all data needed for cross-validation
-    all_audios, all_words, _, all_labels = load_split(TRAIN_PATH, load_times=False)
-    
-    with open(os.path.join("pitt_split", "vocab.pkl"), "rb") as f:
-        data = f.read()
-    vocab = pickle.loads(data)
-    with open(os.path.join("pitt_split", "word2vec_vectors.pkl"), "rb") as f:
+    if not os.path.exists(PROCESSED_DATA_PATH):
+        raise FileNotFoundError("Processed data not found. Please run the data preparation script first.")
+    with open(PROCESSED_DATA_PATH, "rb") as f:
+        data_points = pickle.load(f)
+
+    # Extract all data points from the loaded file
+    all_audios = np.array([d['audio'] for d in data_points])
+    all_words = [d['words'] for d in data_points]
+    all_labels = np.array([1 if d['label'] == 'dementia' else 0 for d in data_points])
+
+    if not os.path.exists(VOCAB_PATH) or not os.path.exists(WORD2VEC_PATH):
+        raise FileNotFoundError("Vocab or Word2Vec vectors not found. Please run the build_vocab script first.")
+    with open(VOCAB_PATH, "rb") as f:
+        vocab = pickle.load(f)
+    with open(WORD2VEC_PATH, "rb") as f:
         word2vec_vectors = pickle.load(f)
     
     word_to_id = {word: i for i, word in enumerate(vocab)}
@@ -94,7 +112,6 @@ if __name__ == "__main__":
         word_val = word_train_val[train_size:]
         y_val = y_train_val[train_size:]
         
-        # Pad the sequences
         word_train_padded, _ = pad_sequences_and_times_np(word_train, None, MAX_SEQUENCE_LENGTH)
         word_val_padded, _ = pad_sequences_and_times_np(word_val, None, MAX_SEQUENCE_LENGTH)
         word_test_padded, _ = pad_sequences_and_times_np(word_test, None, MAX_SEQUENCE_LENGTH)
@@ -120,7 +137,6 @@ if __name__ == "__main__":
             mode='min'
         )
         
-        # Train the model
         model.fit([audio_train, word_train_padded], y_train,
                   validation_data=([audio_val, word_val_padded], y_val),
                   epochs=25,
@@ -128,10 +144,6 @@ if __name__ == "__main__":
                   shuffle=True,
                   callbacks=[callback, model_checkpoint_callback],
                   class_weight=class_weight_dict)
-        
-        model.summary()
-
-        # Evaluate on the test data
         eval_results = model.evaluate([audio_test, word_test_padded], y_test)
         all_eval_results.append(eval_results)
         
@@ -161,7 +173,7 @@ if __name__ == "__main__":
     
     # Load the best-performing model from its saved location
     best_model_path = os.path.join(model_save_dir, f"audio_word_model_fold_{best_fold_number}.keras")
-    best_model_for_prediction = tf.keras.models.load_model(best_model_path)
+    best_model_for_prediction = load_model(best_model_path)
     
     # Save it to a new, more descriptive filename for final use
     final_save_path = os.path.join(model_save_dir, "best_audio_word_model_overall.keras")
