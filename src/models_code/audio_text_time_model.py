@@ -1,7 +1,7 @@
-import os
-import pickle
 import numpy as np
 import tensorflow as tf
+import os
+import pickle
 from tensorflow.keras.layers import Input, Embedding, Concatenate, LSTM, Dense, Dropout, GlobalAveragePooling1D
 from tensorflow.keras.models import Model
 from sklearn.model_selection import KFold
@@ -10,22 +10,21 @@ from utils import pad_sequences_and_times_np
 from weights import Weights
 from tensorflow.keras.models import load_model
 from wav2vec_feature_extractor import Wav2VecFeatureExtractor
-from config import PROCESSED_DATA_PATH, VOCAB_PATH, WORD2VEC_PATH, MAX_SEQUENCE_LENGTH, TARGET_AUDIO_LENGTH
+from config import PROCESSED_DATA_PATH, VOCAB_PATH, WORD2VEC_PATH, MAX_SEQUENCE_LENGTH
+AUDIO_FEATURES_CACHE_PATH = "precomputed_audio_features.npy"
+LABELS_CACHE_PATH = "precomputed_labels.npy"
+FEATURE_EXTRACTION_BATCH_SIZE = 16
 
 # --- MODEL DEFINITION ---
-def create_combined_model(embedding_layer, max_sequence_length, audio_input_shape):
-    """Defines and returns the combined audio and word/time model."""
+def create_combined_model(embedding_layer, max_sequence_length, audio_feature_shape):
     # Audio model branch
-    model_checkpoint = "facebook/wav2vec2-base"
-    audio_input = Input(shape=audio_input_shape, dtype=tf.float32)
-    audio_features = Wav2VecFeatureExtractor(model_checkpoint)(audio_input)
-    audio_output = GlobalAveragePooling1D()(audio_features)
-    audio_output = Dropout(0.5)(audio_output)
+    audio_input = Input(shape=audio_feature_shape, dtype=tf.float32, name="audio_input")
+    audio_output = Dropout(0.5)(audio_input)
     audio_model = Model(inputs=audio_input, outputs=audio_output, name="audio_model")
     audio_model.summary()
     # Word/Time model branch
-    word_input = Input(shape=(max_sequence_length,), dtype=tf.int32)
-    time_stamps = Input(shape=(max_sequence_length, 2), dtype=tf.float32)
+    word_input = Input(shape=(max_sequence_length,), dtype=tf.int32, name="word_input")
+    time_stamps = Input(shape=(max_sequence_length, 2), dtype=tf.float32, name="time_stamps")
     word_embedded = embedding_layer(word_input)
     concatenated = Concatenate()([word_embedded, time_stamps])
     lstm_output = LSTM(16, dropout=0.2, recurrent_dropout=0.2)(concatenated)
@@ -37,7 +36,7 @@ def create_combined_model(embedding_layer, max_sequence_length, audio_input_shap
 
     # Build the combined model
     combined_model = Model(
-        inputs=[audio_model.input, *word_time_model.input],
+        inputs=[audio_model.input, word_time_model.input[0], word_time_model.input[1]],
         outputs=final_output,
         name="combined_model"
     )
@@ -49,10 +48,38 @@ if __name__ == "__main__":
     with open(PROCESSED_DATA_PATH, "rb") as f:
         data_points = pickle.load(f)
 
-    all_audios = np.stack([d['audio'] for d in data_points])
+    if os.path.exists(AUDIO_FEATURES_CACHE_PATH) and os.path.exists(LABELS_CACHE_PATH):
+        print("Loading pre-computed audio features from cache...")
+        all_audios = np.load(AUDIO_FEATURES_CACHE_PATH)
+        all_labels = np.load(LABELS_CACHE_PATH)
+    else:
+        raw_audios = np.stack([d['audio'] for d in data_points])
+        all_labels = np.array([1 if d['label'] == 'dementia' else 0 for d in data_points])
+
+        # Instantiate the feature extractor
+        model_checkpoint = "facebook/wav2vec2-base"
+        feature_extractor = Wav2VecFeatureExtractor(model_checkpoint)
+        pooling_layer = GlobalAveragePooling1D()
+
+        print(f"Processing audio files in batches of {FEATURE_EXTRACTION_BATCH_SIZE}...")
+        extracted_features_list = []
+        for i in range(0, len(raw_audios), FEATURE_EXTRACTION_BATCH_SIZE):
+            batch_raw_audios = raw_audios[i:i + FEATURE_EXTRACTION_BATCH_SIZE]
+            batch_features = feature_extractor(batch_raw_audios)
+            batch_features_pooled = pooling_layer(batch_features)
+            extracted_features_list.append(batch_features_pooled)
+            print(f"Processed batch {i // FEATURE_EXTRACTION_BATCH_SIZE + 1} of {len(raw_audios) // FEATURE_EXTRACTION_BATCH_SIZE + 1}...")
+
+        all_audios = tf.concat(extracted_features_list, axis=0).numpy()
+
+        print("Feature extraction complete. Caching features for future runs...")
+        np.save(AUDIO_FEATURES_CACHE_PATH, all_audios)
+        np.save(LABELS_CACHE_PATH, all_labels)
+        print("Features cached successfully.")
+    
+    # Extract word and time data
     all_words = [d['words'] for d in data_points]
     all_times = [d['word_times'] for d in data_points]
-    all_labels = np.array([1 if d['label'] == 'dementia' else 0 for d in data_points])
 
     if not os.path.exists(VOCAB_PATH) or not os.path.exists(WORD2VEC_PATH):
         raise FileNotFoundError("Vocab or Word2Vec vectors not found. Please run build_vocab.py first.")
@@ -60,19 +87,20 @@ if __name__ == "__main__":
         vocab = pickle.load(f)
     with open(WORD2VEC_PATH, "rb") as f:
         word2vec_vectors = pickle.load(f)
-    
     word_to_id = {word: i for i, word in enumerate(vocab)}
     all_word_ids = [[word_to_id.get(w, 0) for w in sentence] for sentence in all_words]
 
     weight = Weights(vocab, word2vec_vectors)
     embedding_vectors = weight.get_weight_matrix()
     embedding_dim = embedding_vectors.shape[1]
-    
+
     embedding_layer = Embedding(input_dim=len(vocab) + 1,
                                 output_dim=embedding_dim,
                                 weights=[embedding_vectors],
                                 input_length=MAX_SEQUENCE_LENGTH,
                                 trainable=False)
+    
+    audio_feature_shape = all_audios.shape[1:]
 
     # Cross-validation setup
     kf = KFold(n_splits=5, shuffle=True, random_state=42)
@@ -117,7 +145,7 @@ if __name__ == "__main__":
         time_test_padded = (time_test_padded - time_mean) / (time_std + 1e-8)
         
         # Re-initialize and compile a new model for each fold
-        model = create_combined_model(embedding_layer, MAX_SEQUENCE_LENGTH, audio_input_shape=(TARGET_AUDIO_LENGTH,))
+        model = create_combined_model(embedding_layer, MAX_SEQUENCE_LENGTH, audio_feature_shape)
         model.compile(loss='binary_crossentropy',
                       optimizer='adam',
                       metrics=['accuracy', tf.keras.metrics.Precision(), tf.keras.metrics.Recall(), tf.keras.metrics.AUC()])
@@ -132,7 +160,7 @@ if __name__ == "__main__":
         # Create a directory to save the models
         model_save_dir = "models"
         os.makedirs(model_save_dir, exist_ok=True)
-                
+        
         # Define the ModelCheckpoint callback to save the best model for this fold
         checkpoint_path = os.path.join(model_save_dir, f"audio_text_time_model_fold_{fold_number}.keras")
         model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
@@ -147,7 +175,8 @@ if __name__ == "__main__":
                   batch_size=16,
                   shuffle=True,
                   callbacks=[callback, model_checkpoint_callback],
-                  class_weight=class_weight_dict)
+                  class_weight=class_weight_dict,
+                  verbose=0)
         
         model.summary()
 

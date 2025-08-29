@@ -8,30 +8,62 @@ from sklearn.model_selection import KFold
 from sklearn.utils.class_weight import compute_class_weight
 from wav2vec_feature_extractor import Wav2VecFeatureExtractor
 PROCESSED_DATA_PATH = "processed_data.pkl"
+FEATURES_CACHE_PATH = "precomputed_audio_features.npy"
+LABELS_CACHE_PATH = "precomputed_labels.npy"
+FEATURE_EXTRACTION_BATCH_SIZE = 16
 
-# --- MODEL DEFINITION ---
-def create_audio_model():
-    model_checkpoint = "facebook/wav2vec2-base"
-    input_values = Input(shape=(16000,), dtype=tf.float32, name="audio_input")
-    wav2vec_features = Wav2VecFeatureExtractor(model_checkpoint)(input_values)
-    audio_model_output = GlobalAveragePooling1D()(wav2vec_features)
-    audio_model_output = Dropout(0.5)(audio_model_output)
-    output = Dense(1, activation='sigmoid')(audio_model_output)
-    audio_model = Model(inputs=input_values, outputs=output)
-    audio_model.summary() # Corrected summary call
+def create_audio_model(input_shape):
+    input_features = Input(shape=input_shape, dtype=tf.float32, name="audio_input")
+    x = Dropout(0.5)(input_features)
+    output = Dense(1, activation='sigmoid')(x)
+    audio_model = Model(inputs=input_features, outputs=output)
+    audio_model.summary()
     return audio_model
 
-# --- MAIN EXECUTION BLOCK ---
 if __name__ == "__main__":
-    # Load the entire dataset from the single processed file
-    if not os.path.exists(PROCESSED_DATA_PATH):
-        raise FileNotFoundError("Processed data not found. Please run the data preparation script first.")
-    with open(PROCESSED_DATA_PATH, "rb") as f:
-        data_points = pickle.load(f)
+    if os.path.exists(FEATURES_CACHE_PATH) and os.path.exists(LABELS_CACHE_PATH):
+        all_audios = np.load(FEATURES_CACHE_PATH)
+        all_labels = np.load(LABELS_CACHE_PATH)
+    else:
+        # Load the entire dataset from the single processed file
+        if not os.path.exists(PROCESSED_DATA_PATH):
+            raise FileNotFoundError("Processed data not found. Please run the data preparation script first.")
+        with open(PROCESSED_DATA_PATH, "rb") as f:
+            data_points = pickle.load(f)
 
-    all_audios = np.array([d['audio'] for d in data_points])
-    all_labels = np.array([1 if d['label'] == 'dementia' else 0 for d in data_points])
-    
+        raw_audios = np.array([d['audio'] for d in data_points])
+        all_labels = np.array([1 if d['label'] == 'dementia' else 0 for d in data_points])
+        
+        # Instantiate the feature extractor
+        feature_extractor = Wav2VecFeatureExtractor("facebook/wav2vec2-base")
+        pooling_layer = GlobalAveragePooling1D()
+        
+        print(f"Processing audio files in batches of {FEATURE_EXTRACTION_BATCH_SIZE}...")
+        extracted_features_list = []
+        for i in range(0, len(raw_audios), FEATURE_EXTRACTION_BATCH_SIZE):
+            batch_raw_audios = raw_audios[i:i + FEATURE_EXTRACTION_BATCH_SIZE]
+            
+            # Process and extract features for the current batch
+            batch_features = feature_extractor(batch_raw_audios)
+            
+            # Apply GlobalAveragePooling1D to get fixed-size vectors
+            batch_features_pooled = pooling_layer(batch_features)
+            
+            extracted_features_list.append(batch_features_pooled)
+            print(f"Processed batch {i // FEATURE_EXTRACTION_BATCH_SIZE + 1} of {len(raw_audios) // FEATURE_EXTRACTION_BATCH_SIZE + 1}...")
+
+        # Concatenate all the batches into a single tensor
+        all_audios = tf.concat(extracted_features_list, axis=0)
+        
+        all_audios = all_audios.numpy()
+        
+        # Cache the extracted features to disk
+        np.save(FEATURES_CACHE_PATH, all_audios)
+        np.save(LABELS_CACHE_PATH, all_labels)
+
+    # Get the input shape for the model from the pre-computed features
+    input_shape = all_audios.shape[1:]
+
     # Cross-validation setup
     kf = KFold(n_splits=5, shuffle=True, random_state=42)
     all_eval_results = []
@@ -59,7 +91,7 @@ if __name__ == "__main__":
         y_val = y_train_val[train_size:]
         
         # Re-initialize and compile a new model for each fold
-        model = create_audio_model()
+        model = create_audio_model(input_shape)
         model.compile(loss='binary_crossentropy',
                       optimizer='adam',
                       metrics=['accuracy', tf.keras.metrics.Precision(), tf.keras.metrics.Recall(), tf.keras.metrics.AUC()])
@@ -87,7 +119,7 @@ if __name__ == "__main__":
                   shuffle=True,
                   callbacks=[callback, model_checkpoint_callback],
                   class_weight=class_weight_dict,
-                  verbose=0) 
+                  verbose=0)
         
         # Evaluate on the test data
         eval_results = model.evaluate(audio_test, y_test)
@@ -107,7 +139,10 @@ if __name__ == "__main__":
     eval_results_array = np.array(all_eval_results)
     best_accuracy_index = np.argmax(eval_results_array[:, 1])
     best_fold_number = best_accuracy_index + 1
-        
+    
+    print("\n--- Identifying the Best Model ---")
+    print(f"✅ The overall best model was found in Fold {best_fold_number}.")
+    
     # Load the best-performing model from its saved location
     best_model_path = os.path.join(model_save_dir, f"audio_model_fold_{best_fold_number}.keras")
     best_model_for_prediction = load_model(best_model_path)

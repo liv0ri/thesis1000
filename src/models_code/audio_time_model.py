@@ -13,16 +13,14 @@ from utils import pad_sequences_and_times_np
 
 PROCESSED_DATA_PATH = "processed_data.pkl"
 MAX_SEQUENCE_LENGTH = 50
+AUDIO_FEATURES_CACHE_PATH = "precomputed_audio_features.npy"
+LABELS_CACHE_PATH = "precomputed_labels.npy"
+FEATURE_EXTRACTION_BATCH_SIZE = 16
 
 # --- MODEL DEFINITION ---
-def create_audio_time_model(max_sequence_length):
-    model_checkpoint = "facebook/wav2vec2-base"
-    audio_input = Input(shape=(16000,), dtype=tf.float32, name="audio_input")
-
-    # Audio model branch
-    audio_features = Wav2VecFeatureExtractor(model_checkpoint)(audio_input)
-    audio_output = GlobalAveragePooling1D()(audio_features)
-    audio_output = Dropout(0.5)(audio_output)
+def create_audio_time_model(max_sequence_length, audio_feature_shape):
+    audio_input = Input(shape=audio_feature_shape, dtype=tf.float32, name="audio_input")
+    audio_output = Dropout(0.5)(audio_input)
     audio_model = Model(inputs=audio_input, outputs=audio_output, name='audio_model')
 
     # Time model branch
@@ -42,10 +40,39 @@ if __name__ == "__main__":
     with open(PROCESSED_DATA_PATH, "rb") as f:
         data_points = pickle.load(f)
 
-    all_audios = np.array([d['audio'] for d in data_points])
-    all_times = [d['word_times'] for d in data_points]
-    all_labels = np.array([1 if d['label'] == 'dementia' else 0 for d in data_points])
+    # Check if pre-computed audio features exist
+    if os.path.exists(AUDIO_FEATURES_CACHE_PATH) and os.path.exists(LABELS_CACHE_PATH):
+        print("Loading pre-computed audio features from cache...")
+        all_audios = np.load(AUDIO_FEATURES_CACHE_PATH)
+        all_labels = np.load(LABELS_CACHE_PATH)
+    else:
+        print("Pre-computed audio features not found. Starting feature extraction...")
+        raw_audios = np.array([d['audio'] for d in data_points])
+        all_labels = np.array([1 if d['label'] == 'dementia' else 0 for d in data_points])
+
+        # Instantiate the feature extractor
+        model_checkpoint = "facebook/wav2vec2-base"
+        feature_extractor = Wav2VecFeatureExtractor(model_checkpoint)
+        pooling_layer = GlobalAveragePooling1D()
+
+        print(f"Processing audio files in batches of {FEATURE_EXTRACTION_BATCH_SIZE}...")
+        extracted_features_list = []
+        for i in range(0, len(raw_audios), FEATURE_EXTRACTION_BATCH_SIZE):
+            batch_raw_audios = raw_audios[i:i + FEATURE_EXTRACTION_BATCH_SIZE]
+            batch_features = feature_extractor(batch_raw_audios)
+            batch_features_pooled = pooling_layer(batch_features)
+            extracted_features_list.append(batch_features_pooled)
+            print(f"Processed batch {i // FEATURE_EXTRACTION_BATCH_SIZE + 1} of {len(raw_audios) // FEATURE_EXTRACTION_BATCH_SIZE + 1}...")
+
+        all_audios = tf.concat(extracted_features_list, axis=0).numpy()
+
+        np.save(AUDIO_FEATURES_CACHE_PATH, all_audios)
+        np.save(LABELS_CACHE_PATH, all_labels)
     
+    all_times = [d['word_times'] for d in data_points]
+    
+    audio_feature_shape = all_audios.shape[1:]
+
     # Cross-validation setup
     kf = KFold(n_splits=5, shuffle=True, random_state=42)
     all_eval_results = []
@@ -86,7 +113,7 @@ if __name__ == "__main__":
         time_val_padded = (time_val_padded - time_mean) / (time_std + 1e-8)
         time_test_padded = (time_test_padded - time_mean) / (time_std + 1e-8)
         
-        model = create_audio_time_model(MAX_SEQUENCE_LENGTH)
+        model = create_audio_time_model(MAX_SEQUENCE_LENGTH, audio_feature_shape)
         model.compile(loss='binary_crossentropy',
                       optimizer='adam',
                       metrics=['accuracy', tf.keras.metrics.Precision(), tf.keras.metrics.Recall(), tf.keras.metrics.AUC()])
@@ -106,6 +133,7 @@ if __name__ == "__main__":
         )
         
         # Train the model
+        model.summary()
         model.fit([audio_train, time_train_padded], y_train,
                   validation_data=([audio_val, time_val_padded], y_val),
                   epochs=25,
@@ -139,9 +167,12 @@ if __name__ == "__main__":
     print(f"✅ The overall best model was found in Fold {best_fold_number}.")
     
     best_model_path = os.path.join(model_save_dir, f"audio_time_model_fold_{best_fold_number}.keras")
-    best_model_for_prediction = load_model(best_model_path)
-    
-    # Save it to a new, more descriptive filename for final use
-    final_save_path = os.path.join(model_save_dir, "best_audio_time_model_overall.keras")
-    best_model_for_prediction.save(final_save_path)
-    print(f"✅ The best model has been saved to: {final_save_path}")
+    try:
+        best_model_for_prediction = load_model(best_model_path)
+        
+        # Save it to a new, more descriptive filename for final use
+        final_save_path = os.path.join(model_save_dir, "best_audio_time_model_overall.keras")
+        best_model_for_prediction.save(final_save_path)
+        print(f"✅ The best model has been saved to: {final_save_path}")
+    except Exception as e:
+        print(f"❌ Error loading or saving the model: {e}")
