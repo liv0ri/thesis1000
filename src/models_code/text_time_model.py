@@ -1,21 +1,14 @@
-import os
-import pickle
 import numpy as np
 import tensorflow as tf
+import os
+import pickle
 from tensorflow.keras.layers import Input, Embedding, Concatenate, LSTM, Dense
-from tensorflow.keras.models import Model
+from tensorflow.keras.models import Model, load_model
 from sklearn.model_selection import KFold
 from sklearn.utils.class_weight import compute_class_weight
-from tensorflow.keras.models import load_model
-
-# Import helper functions and classes from your other files
 from utils import pad_sequences_and_times_np
 from weights import Weights
-
-PROCESSED_DATA_PATH = "processed_data.pkl"
-VOCAB_PATH = "vocab.pkl"
-WORD2VEC_PATH = "word2vec_vectors.pkl"
-MAX_SEQUENCE_LENGTH = 50
+from config import PROCESSED_DATA_PATH, VOCAB_PATH, WORD2VEC_PATH, MAX_SEQUENCE_LENGTH
 
 def create_model(embedding_layer, max_sequence_length):
     word_input = Input(shape=(max_sequence_length,), name='word_input', dtype=tf.int32)
@@ -140,21 +133,17 @@ if __name__ == "__main__":
     avg_results = np.mean(all_eval_results, axis=0)
     std_results = np.std(all_eval_results, axis=0)
 
-    print("\n--- Final Results (Mean ± Std Dev) ---")
     print(f"Loss: {avg_results[0]:.4f} ± {std_results[0]:.4f}")
     print(f"Accuracy: {avg_results[1]:.4f} ± {std_results[1]:.4f}")
     print(f"Precision: {avg_results[2]:.4f} ± {std_results[2]:.4f}")
     print(f"Recall: {avg_results[3]:.4f} ± {std_results[3]:.4f}")
     print(f"AUC: {avg_results[4]:.4f} ± {std_results[4]:.4f}")
 
-    print("\n✅ Finished all folds.")
-
     eval_results_array = np.array(all_eval_results)
     best_accuracy_index = np.argmax(eval_results_array[:, 1])
     best_fold_number = best_accuracy_index + 1
     
-    print("\n--- Identifying the Best Model ---")
-    print(f"✅ The overall best model was found in Fold {best_fold_number}.")
+    print(f"The overall best model was found in Fold {best_fold_number}.")
     
     # Load the best-performing model from its saved location
     best_model_path = os.path.join(model_save_dir, f"text_time_model_fold_{best_fold_number}.keras")
@@ -163,4 +152,4 @@ if __name__ == "__main__":
     # Save it to a new, more descriptive filename for final use
     final_save_path = os.path.join(model_save_dir, "best_text_time_model_overall.keras")
     best_model_for_prediction.save(final_save_path)
-    print(f"✅ The best model has been saved to: {final_save_path}")
+    print(f"The best model has been saved to: {final_save_path}")

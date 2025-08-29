@@ -8,15 +8,9 @@ from sklearn.model_selection import KFold
 from sklearn.utils.class_weight import compute_class_weight
 from weights import Weights
 from utils import pad_sequences_and_times_np
+from config import PROCESSED_DATA_PATH, VOCAB_PATH, WORD2VEC_PATH, MAX_SEQUENCE_LENGTH
 
-PROCESSED_DATA_PATH = "processed_data.pkl"
-VOCAB_PATH = "vocab.pkl"
-WORD2VEC_PATH = "word2vec_vectors.pkl"
-MAX_SEQUENCE_LENGTH = 50
-
-# --- MODEL DEFINITION ---
 def create_text_model(embedding_layer, max_sequence_length):
-    """Defines and returns the Keras text-only model."""
     word_input = Input(shape=(max_sequence_length,), name='word_input', dtype=tf.int32)
     word_embedded = embedding_layer(word_input)
     lstm_output = LSTM(16, dropout=0.2, recurrent_dropout=0.2)(word_embedded)
@@ -24,19 +18,15 @@ def create_text_model(embedding_layer, max_sequence_length):
     model = Model(inputs=word_input, outputs=output, name='word_lstm_model')
     return model
 
-# --- MAIN EXECUTION BLOCK ---
 if __name__ == "__main__":
-    print("Loading all processed data...")
     if not os.path.exists(PROCESSED_DATA_PATH):
         raise FileNotFoundError("Processed data not found. Please run the data preparation script first.")
     with open(PROCESSED_DATA_PATH, "rb") as f:
         data_points = pickle.load(f)
 
-    # Extract all words and labels from the full dataset
     all_words = [d['words'] for d in data_points]
     all_labels = np.array([1 if d['label'] == 'dementia' else 0 for d in data_points])
 
-    print("Loading vocabulary and word embeddings...")
     if not os.path.exists(VOCAB_PATH) or not os.path.exists(WORD2VEC_PATH):
         raise FileNotFoundError("Vocab or Word2Vec vectors not found. Please run the build_vocab script first.")
     with open(VOCAB_PATH, "rb") as f:
@@ -140,15 +130,12 @@ if __name__ == "__main__":
     print(f"Recall: {avg_results[3]:.4f} ± {std_results[3]:.4f}")
     print(f"AUC: {avg_results[4]:.4f} ± {std_results[4]:.4f}")
 
-    print("\n✅ Finished all folds.")
-
     # Find and save the single best model overall
     eval_results_array = np.array(all_eval_results)
     best_accuracy_index = np.argmax(eval_results_array[:, 1])
     best_fold_number = best_accuracy_index + 1
     
-    print("\n--- Identifying the Best Model ---")
-    print(f"✅ The overall best model was found in Fold {best_fold_number}.")
+    print(f"The overall best model was found in Fold {best_fold_number}.")
     
     # Load the best-performing model from its saved location
     best_model_path = os.path.join(model_save_dir, f"text_model_fold_{best_fold_number}.keras")
@@ -157,4 +144,4 @@ if __name__ == "__main__":
     # Save it to a new, more descriptive filename for final use
     final_save_path = os.path.join(model_save_dir, "best_text_model_overall.keras")
     best_model_for_prediction.save(final_save_path)
-    print(f"✅ The best model has been saved to: {final_save_path}")
+    print(f"The best model has been saved to: {final_save_path}")

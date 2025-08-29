@@ -6,9 +6,7 @@ from tensorflow.keras.layers import GlobalAveragePooling1D, LSTM, Embedding
 from wav2vec_feature_extractor import Wav2VecFeatureExtractor
 from utils import pad_sequences_and_times_np
 import pickle
-
-VOCAB_PATH = "vocab.pkl"
-MAX_SEQUENCE_LENGTH = 50
+from config import VOCAB_PATH, MAX_SEQUENCE_LENGTH
 
 if __name__ == "__main__":
     if not os.path.exists(VOCAB_PATH):
@@ -18,8 +16,6 @@ if __name__ == "__main__":
         data = f.read()
     vocab = pickle.loads(data)
     
-    # We will use these dummy data points for all models.
-    # The shapes are chosen to match the expected inputs of the models.
     audio_raw = np.random.randn(1, 16000).astype(np.float32)
     word_ids_raw = [np.random.randint(1, len(vocab) + 1, size=(5,)).tolist()] # Dummy word sequence
     time_raw = np.random.randn(1, 5, 2).astype(np.float32) # Dummy time data

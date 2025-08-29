@@ -2,20 +2,15 @@ import numpy as np
 import tensorflow as tf
 import os
 import pickle
-from tensorflow.keras.layers import Input, Embedding, Concatenate, LSTM, Dense, Dropout, GlobalAveragePooling1D
-from tensorflow.keras.models import Model
+from tensorflow.keras.layers import Input, Embedding, Concatenate, LSTM, Dense, Dropout
+from tensorflow.keras.models import Model, load_model
 from sklearn.model_selection import KFold
 from sklearn.utils.class_weight import compute_class_weight
-from utils import pad_sequences_and_times_np
+from utils import pad_sequences_and_times_np, prepare_audio_data
 from weights import Weights
-from tensorflow.keras.models import load_model
-from wav2vec_feature_extractor import Wav2VecFeatureExtractor
-from config import PROCESSED_DATA_PATH, VOCAB_PATH, WORD2VEC_PATH, MAX_SEQUENCE_LENGTH
-AUDIO_FEATURES_CACHE_PATH = "precomputed_audio_features.npy"
-LABELS_CACHE_PATH = "precomputed_labels.npy"
-FEATURE_EXTRACTION_BATCH_SIZE = 16
+from config import PROCESSED_DATA_PATH, VOCAB_PATH, WORD2VEC_PATH, MAX_SEQUENCE_LENGTH, AUDIO_FEATURES_CACHE_PATH, LABELS_CACHE_PATH
 
-# --- MODEL DEFINITION ---
+
 def create_combined_model(embedding_layer, max_sequence_length, audio_feature_shape):
     # Audio model branch
     audio_input = Input(shape=audio_feature_shape, dtype=tf.float32, name="audio_input")
@@ -49,33 +44,10 @@ if __name__ == "__main__":
         data_points = pickle.load(f)
 
     if os.path.exists(AUDIO_FEATURES_CACHE_PATH) and os.path.exists(LABELS_CACHE_PATH):
-        print("Loading pre-computed audio features from cache...")
         all_audios = np.load(AUDIO_FEATURES_CACHE_PATH)
         all_labels = np.load(LABELS_CACHE_PATH)
     else:
-        raw_audios = np.stack([d['audio'] for d in data_points])
-        all_labels = np.array([1 if d['label'] == 'dementia' else 0 for d in data_points])
-
-        # Instantiate the feature extractor
-        model_checkpoint = "facebook/wav2vec2-base"
-        feature_extractor = Wav2VecFeatureExtractor(model_checkpoint)
-        pooling_layer = GlobalAveragePooling1D()
-
-        print(f"Processing audio files in batches of {FEATURE_EXTRACTION_BATCH_SIZE}...")
-        extracted_features_list = []
-        for i in range(0, len(raw_audios), FEATURE_EXTRACTION_BATCH_SIZE):
-            batch_raw_audios = raw_audios[i:i + FEATURE_EXTRACTION_BATCH_SIZE]
-            batch_features = feature_extractor(batch_raw_audios)
-            batch_features_pooled = pooling_layer(batch_features)
-            extracted_features_list.append(batch_features_pooled)
-            print(f"Processed batch {i // FEATURE_EXTRACTION_BATCH_SIZE + 1} of {len(raw_audios) // FEATURE_EXTRACTION_BATCH_SIZE + 1}...")
-
-        all_audios = tf.concat(extracted_features_list, axis=0).numpy()
-
-        print("Feature extraction complete. Caching features for future runs...")
-        np.save(AUDIO_FEATURES_CACHE_PATH, all_audios)
-        np.save(LABELS_CACHE_PATH, all_labels)
-        print("Features cached successfully.")
+        all_audios, all_labels = prepare_audio_data(data_points)
     
     # Extract word and time data
     all_words = [d['words'] for d in data_points]
@@ -191,14 +163,12 @@ if __name__ == "__main__":
     avg_results = np.mean(all_eval_results, axis=0)
     std_results = np.std(all_eval_results, axis=0)
 
-    print("\n--- Final Results (Mean ± Std Dev) ---")
     print(f"Loss: {avg_results[0]:.4f} ± {std_results[0]:.4f}")
     print(f"Accuracy: {avg_results[1]:.4f} ± {std_results[1]:.4f}")
     print(f"Precision: {avg_results[2]:.4f} ± {std_results[2]:.4f}")
     print(f"Recall: {avg_results[3]:.4f} ± {std_results[3]:.4f}")
     print(f"AUC: {avg_results[4]:.4f} ± {std_results[4]:.4f}")
 
-    print("\n✅ Finished all folds.")
     eval_results_array = np.array(all_eval_results)
 
     # The accuracy metric is at index 1 in the evaluation results list
@@ -210,22 +180,14 @@ if __name__ == "__main__":
     # The fold number is the index plus 1
     best_fold_number = best_accuracy_index + 1
 
-    # Print the results for clarity
-    print("\n--- Identifying the Best Model ---")
-    print(f"✅ The best model was found in Fold {best_fold_number} with an accuracy of {accuracy_results[best_accuracy_index]:.4f}")
+    print(f"The best model was found in Fold {best_fold_number} with an accuracy of {accuracy_results[best_accuracy_index]:.4f}")
 
     # Construct the file path for the best model
     best_model_path = os.path.join(model_save_dir, f"audio_text_time_model_fold_{best_fold_number}.keras")
 
-    # Load the best-performing model
-    try:
-        best_model_for_prediction = load_model(best_model_path)
-        print("✅ Successfully loaded the best model.")
-        
-        # Save the best model to a new, more descriptive file name
-        final_save_path = os.path.join(model_save_dir, "best_model_audio_text_time.keras")
-        best_model_for_prediction.save(final_save_path)
-        print(f"✅ The best model has been saved to: {final_save_path}")
-
-    except Exception as e:
-        print(f"❌ Error loading or saving the model: {e}")
+    best_model_for_prediction = load_model(best_model_path)
+    
+    # Save the best model to a new, more descriptive file name
+    final_save_path = os.path.join(model_save_dir, "best_model_audio_text_time.keras")
+    best_model_for_prediction.save(final_save_path)
+    print(f"The best model has been saved to: {final_save_path}")

@@ -2,24 +2,13 @@ import numpy as np
 import tensorflow as tf
 import os
 import pickle
-from tensorflow.keras.layers import Dense, LSTM, Dropout, Input, Concatenate, Embedding, GlobalAveragePooling1D
+from tensorflow.keras.layers import Dense, LSTM, Dropout, Input, Concatenate, Embedding
 from tensorflow.keras.models import Model, load_model
 from sklearn.model_selection import KFold
 from sklearn.utils.class_weight import compute_class_weight
-
-# Import helper functions and classes from your other files
-from wav2vec_feature_extractor import Wav2VecFeatureExtractor
-from utils import pad_sequences_and_times_np
+from utils import pad_sequences_and_times_np, prepare_audio_data
 from weights import Weights
-
-# --- CONFIG ---
-PROCESSED_DATA_PATH = "processed_data.pkl"
-VOCAB_PATH = "vocab.pkl"
-WORD2VEC_PATH = "word2vec_vectors.pkl"
-MAX_SEQUENCE_LENGTH = 50
-AUDIO_FEATURES_CACHE_PATH = "precomputed_audio_features.npy"
-LABELS_CACHE_PATH = "precomputed_labels.npy"
-FEATURE_EXTRACTION_BATCH_SIZE = 16
+from config import PROCESSED_DATA_PATH, VOCAB_PATH, WORD2VEC_PATH, MAX_SEQUENCE_LENGTH, AUDIO_FEATURES_CACHE_PATH, LABELS_CACHE_PATH
 
 def create_audio_word_model(embedding_layer, max_sequence_length, audio_feature_shape):
     # Audio model branch now accepts pre-computed, flattened audio features
@@ -29,7 +18,6 @@ def create_audio_word_model(embedding_layer, max_sequence_length, audio_feature_
     audio_model.summary()
     
     # Word model branch
-    # This branch uses a pre-trained word embedding layer and an LSTM to process text.
     word_input = Input(shape=(max_sequence_length,), dtype=tf.int32, name="word_input")
     word_embedded = embedding_layer(word_input)
     word_lstm = LSTM(16, dropout=0.2, recurrent_dropout=0.2)(word_embedded)
@@ -54,28 +42,8 @@ if __name__ == "__main__":
         all_audios = np.load(AUDIO_FEATURES_CACHE_PATH)
         all_labels = np.load(LABELS_CACHE_PATH)
     else:
-        raw_audios = np.stack([d['audio'] for d in data_points])
-        all_labels = np.array([1 if d['label'] == 'dementia' else 0 for d in data_points])
-
-        # Instantiate the feature extractor and pooling layer
-        model_checkpoint = "facebook/wav2vec2-base"
-        feature_extractor = Wav2VecFeatureExtractor(model_checkpoint)
-        pooling_layer = GlobalAveragePooling1D()
-
-        print(f"Processing audio files in batches of {FEATURE_EXTRACTION_BATCH_SIZE}...")
-        extracted_features_list = []
-        for i in range(0, len(raw_audios), FEATURE_EXTRACTION_BATCH_SIZE):
-            batch_raw_audios = raw_audios[i:i + FEATURE_EXTRACTION_BATCH_SIZE]
-            batch_features = feature_extractor(batch_raw_audios)
-            batch_features_pooled = pooling_layer(batch_features)
-            extracted_features_list.append(batch_features_pooled)
-            print(f"Processed batch {i // FEATURE_EXTRACTION_BATCH_SIZE + 1} of {len(raw_audios) // FEATURE_EXTRACTION_BATCH_SIZE + 1}...")
-
-        all_audios = tf.concat(extracted_features_list, axis=0).numpy()
-
-        np.save(AUDIO_FEATURES_CACHE_PATH, all_audios)
-        np.save(LABELS_CACHE_PATH, all_labels)
-        all_words = [d['words'] for d in data_points]
+        all_audios, all_labels = prepare_audio_data(data_points)
+    all_words = [d['words'] for d in data_points]
     if not os.path.exists(VOCAB_PATH) or not os.path.exists(WORD2VEC_PATH):
         raise FileNotFoundError("Vocab or Word2Vec vectors not found. Please run the build_vocab script first.")
     with open(VOCAB_PATH, "rb") as f:
@@ -169,22 +137,18 @@ if __name__ == "__main__":
     avg_results = np.mean(all_eval_results, axis=0)
     std_results = np.std(all_eval_results, axis=0)
 
-    print("\n--- Final Results (Mean ± Std Dev) ---")
     print(f"Loss: {avg_results[0]:.4f} ± {std_results[0]:.4f}")
     print(f"Accuracy: {avg_results[1]:.4f} ± {std_results[1]:.4f}")
     print(f"Precision: {avg_results[2]:.4f} ± {std_results[2]:.4f}")
     print(f"Recall: {avg_results[3]:.4f} ± {std_results[3]:.4f}")
     print(f"AUC: {avg_results[4]:.4f} ± {std_results[4]:.4f}")
     
-    print("\n✅ Finished all folds.")
-
     # Find and save the single best model overall
     eval_results_array = np.array(all_eval_results)
     best_accuracy_index = np.argmax(eval_results_array[:, 1])
     best_fold_number = best_accuracy_index + 1
     
-    print("\n--- Identifying the Best Model ---")
-    print(f"✅ The overall best model was found in Fold {best_fold_number}.")
+    print(f"The overall best model was found in Fold {best_fold_number}.")
     
     # Load the best-performing model from its saved location
     best_model_path = os.path.join(model_save_dir, f"audio_word_model_fold_{best_fold_number}.keras")
@@ -193,4 +157,4 @@ if __name__ == "__main__":
     # Save it to a new, more descriptive filename for final use
     final_save_path = os.path.join(model_save_dir, "best_audio_word_model_overall.keras")
     best_model_for_prediction.save(final_save_path)
-    print(f"✅ The best model has been saved to: {final_save_path}")
+    print(f"The best model has been saved to: {final_save_path}")

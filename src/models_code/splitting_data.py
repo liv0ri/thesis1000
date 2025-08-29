@@ -1,5 +1,3 @@
-# split_data.py
-
 import os
 import pickle
 import pylangacq
@@ -9,7 +7,6 @@ import soundfile as sf
 import warnings
 from config import INPUT_BASE_PATH, PROCESSED_DATA_PATH, TARGET_AUDIO_LENGTH
 
-# Input folders for transcripts and audio
 INPUT_FOLDERS = {
     "control": os.path.join(INPUT_BASE_PATH, "cha_files", "control"),
     "dementia": os.path.join(INPUT_BASE_PATH, "cha_files", "dementia"),
@@ -20,9 +17,7 @@ AUDIO_FOLDERS = {
     "dementia": os.path.join(INPUT_BASE_PATH, "wav", "dementia"),
 }
 
-# --- HELPERS ---
 def extract_utterances(cha_path, label):
-    """Extract utterances from .cha file with robust timestamp handling."""
     reader = pylangacq.read_chat(cha_path)
     utterances = reader.utterances()
     data_points = []
@@ -44,9 +39,8 @@ def extract_utterances(cha_path, label):
     return data_points
 
 def load_audio_file(file_path, target_length=TARGET_AUDIO_LENGTH):
-    """Load and pad/truncate audio files."""
     try:
-        audio, sr = sf.read(file_path)
+        audio, _ = sf.read(file_path)
     except FileNotFoundError:
         raise FileNotFoundError(f"Audio file not found: {file_path}")
 
@@ -62,22 +56,19 @@ def load_audio_file(file_path, target_length=TARGET_AUDIO_LENGTH):
     return audio.astype(np.float32)
 
 def load_and_save_data(input_folders, audio_folders, output_path):
-    """Loads all data points and saves them to a single file."""
     all_data_points = []
-    print("Extracting all utterances...")
     for label, folder in input_folders.items():
         if not os.path.exists(folder):
-            print(f"Warning: Directory not found: {folder}. Skipping.")
             continue
         for fname in os.listdir(folder):
             if fname.endswith(".cha"):
                 cha_path = os.path.join(folder, fname)
                 base_name = os.path.splitext(fname)[0]
-                audio_path = os.path.join(audio_folders[label], base_name + ".mp3") # assuming .wav for now, adjust if .mp3
+                audio_path = os.path.join(audio_folders[label], base_name + ".mp3") 
                 
                 audio = load_audio_file(audio_path)
                 if audio is None:
-                    continue
+                    raise FileNotFoundError(f"Audio file not found for {cha_path}")
 
                 utterances = extract_utterances(cha_path, label)
                 
@@ -92,7 +83,5 @@ def load_and_save_data(input_folders, audio_folders, output_path):
     with open(output_path, "wb") as f:
         pickle.dump(all_data_points, f)
     
-    print(f"✅ Data saved to {output_path}")
-
 if __name__ == "__main__":
     load_and_save_data(INPUT_FOLDERS, AUDIO_FOLDERS, PROCESSED_DATA_PATH)

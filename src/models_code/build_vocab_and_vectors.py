@@ -5,7 +5,6 @@ from gensim.models import Word2Vec
 from config import PROCESSED_DATA_PATH, VOCAB_PATH, WORD2VEC_PATH
 
 def get_all_sentences(data_path):
-    """Load transcripts from the processed data file."""
     if not os.path.exists(data_path):
         raise FileNotFoundError(f"Data file not found at {data_path}. Please run split_data.py first.")
     
