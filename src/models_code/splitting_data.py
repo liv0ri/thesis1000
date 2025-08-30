@@ -18,7 +18,6 @@ AUDIO_FOLDERS = {
 }
 
 def extract_utterances(cha_path, label):
-    # ... (Your existing function remains the same)
     reader = pylangacq.read_chat(cha_path)
     utterances = reader.utterances()
     data_points = []
@@ -51,7 +50,7 @@ def load_and_save_data(input_folders, audio_folders, output_path, target_length=
                 audio_path = os.path.join(audio_folders[label], base_name + ".mp3")
                 
                 try:
-                    # Load the audio file once per transcript
+                    # Load the audio file once per transcript and get the sample rate
                     audio, sample_rate = sf.read(audio_path)
                 except FileNotFoundError:
                     warnings.warn(f"Audio file not found for {cha_path}, skipping.")
