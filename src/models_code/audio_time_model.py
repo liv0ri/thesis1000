@@ -38,7 +38,7 @@ if __name__ == "__main__":
     else:
         all_audios, all_labels = prepare_audio_data(data_points)
     
-    all_times = [d['word_times'] for d in data_points]
+    all_times = [[(d['start'], d['end'])] for d in data_points]
     
     audio_feature_shape = all_audios.shape[1:]
 

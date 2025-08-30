@@ -51,7 +51,7 @@ if __name__ == "__main__":
     
     # Extract word and time data
     all_words = [d['words'] for d in data_points]
-    all_times = [d['word_times'] for d in data_points]
+    all_times = [[(d['start'], d['end'])]  for d in data_points]
 
     if not os.path.exists(VOCAB_PATH) or not os.path.exists(WORD2VEC_PATH):
         raise FileNotFoundError("Vocab or Word2Vec vectors not found. Please run build_vocab.py first.")

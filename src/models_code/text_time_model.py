@@ -27,7 +27,7 @@ if __name__ == "__main__":
         data_points = pickle.load(f)
 
     all_words = [d['words'] for d in data_points]
-    all_times = [d['word_times'] for d in data_points]
+    all_times = [[(d['start'], d['end'])] for d in data_points]
     all_labels = np.array([1 if d['label'] == 'dementia' else 0 for d in data_points])
 
     if not os.path.exists(VOCAB_PATH) or not os.path.exists(WORD2VEC_PATH):

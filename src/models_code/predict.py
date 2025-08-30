@@ -1,7 +1,6 @@
 import os
 import numpy as np
-import tensorflow as tf
-from tensorflow.keras.models import load_model, Model
+from tensorflow.keras.models import load_model
 from tensorflow.keras.layers import GlobalAveragePooling1D, LSTM, Embedding
 from wav2vec_feature_extractor import Wav2VecFeatureExtractor
 from utils import pad_sequences_and_times_np
