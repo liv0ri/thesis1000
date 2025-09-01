@@ -2,7 +2,7 @@ import numpy as np
 from tensorflow.keras.layers import GlobalAveragePooling1D
 import tensorflow as tf
 from wav2vec_feature_extractor import Wav2VecFeatureExtractor
-from config import FEATURE_EXTRACTION_BATCH_SIZE, FEATURES_CACHE_PATH, LABELS_CACHE_PATH
+from config import FEATURE_EXTRACTION_BATCH_SIZE
 
 def pad_sequences_and_times_np(word_sequences=None, time_sequences=None, maxlen=100):
     """Pads word and time sequences to a fixed length."""
@@ -26,7 +26,7 @@ def pad_sequences_and_times_np(word_sequences=None, time_sequences=None, maxlen=
     
     return padded_words_np, padded_times_np
 
-def prepare_audio_data(data_points):
+def prepare_audio_data(data_points, features_cache_path, labels_cache_path):
     raw_audios = np.array([d['audio'] for d in data_points])
     all_labels = np.array([1 if d['label'] == 'dementia' else 0 for d in data_points])
     
@@ -54,6 +54,6 @@ def prepare_audio_data(data_points):
     all_audios = all_audios.numpy()
     
     # Cache the extracted features to disk
-    np.save(FEATURES_CACHE_PATH, all_audios)
-    np.save(LABELS_CACHE_PATH, all_labels)
+    np.save(features_cache_path, all_audios)
+    np.save(labels_cache_path, all_labels)
     return all_audios, all_labels

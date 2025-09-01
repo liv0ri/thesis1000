@@ -6,8 +6,10 @@ __pycache__/
 processed_data.pkl
 vocab.pkl
 word2vec_vectors.pkl
-precomputed_audio_features.npy
-precomputed_labels.npy
+precomputed_original_audio_features.npy
+precomputed_original_labels.npy
+precomputed_both_audio_features.npy
+precomputed_both_labels.npy
 
 # Model checkpoints and logs
 models/
