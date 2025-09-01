@@ -20,14 +20,35 @@ def create_model(embedding_layer, max_sequence_length):
     model = Model(inputs=[word_input, time_stamps], outputs=output)
     return model
 
-if __name__ == "__main__":
+def train_and_save_text_time_model(dataset_type, remove_short_sentences):
+    cache_base_name = f"precomputed_{dataset_type}"
+    if remove_short_sentences:
+        cache_base_name += "_no_short"
+    LABELS_CACHE_PATH = f"{cache_base_name}_labels.npy"
+
     if not os.path.exists(PROCESSED_DATA_PATH):
         raise FileNotFoundError("Processed data not found. Please run the data preparation script first.")
     with open(PROCESSED_DATA_PATH, "rb") as f:
         data_points = pickle.load(f)
 
+    # Filter data based on input parameters
+    if dataset_type == "original":
+        data_points = [d for d in data_points if d['source_type'] == 'original']
+    elif dataset_type == "augmented":
+        data_points = [d for d in data_points if d['source_type'] == 'text_augmented']
+    if remove_short_sentences:
+        data_points = [d for d in data_points if len(d['words']) >= 5]
+
+    if os.path.exists(LABELS_CACHE_PATH):
+        all_labels = np.load(LABELS_CACHE_PATH)
+    else:
+        all_labels = np.array([1 if d['label'] == 'dementia' else 0 for d in data_points])
+        np.save(LABELS_CACHE_PATH, all_labels)
+    
+    # Extract data for the model
     all_words = [d['words'] for d in data_points]
-    all_times = [[(d['start'], d['end'])] for d in data_points]
+    # Correctly extract the word_times field, which contains timestamps for each word.
+    all_times = [d['word_times'] for d in data_points]
     all_labels = np.array([1 if d['label'] == 'dementia' else 0 for d in data_points])
 
     if not os.path.exists(VOCAB_PATH) or not os.path.exists(WORD2VEC_PATH):
@@ -36,7 +57,6 @@ if __name__ == "__main__":
         vocab = pickle.load(f)
     with open(WORD2VEC_PATH, "rb") as f:
         word2vec_vectors = pickle.load(f)
-    
     word_to_id = {word: i for i, word in enumerate(vocab)}
     all_word_ids = [[word_to_id.get(w, 0) for w in sentence] for sentence in all_words]
 
@@ -55,7 +75,9 @@ if __name__ == "__main__":
     all_eval_results = []
     fold_number = 1
     
-    model_save_dir = "models"
+    model_save_dir = f"models\{dataset_type}"
+    if remove_short_sentences:
+        model_save_dir += "_no_short"
     os.makedirs(model_save_dir, exist_ok=True)
 
     # Loop through each of the 5 folds
@@ -119,7 +141,7 @@ if __name__ == "__main__":
                   epochs=25,
                   batch_size=16,
                   shuffle=True,
-                  callbacks=[callback, model_checkpoint_callback], # ADDED callback
+                  callbacks=[callback, model_checkpoint_callback],
                   class_weight=class_weight_dict,
                   verbose=0)
         
@@ -150,6 +172,10 @@ if __name__ == "__main__":
     best_model_for_prediction = load_model(best_model_path)
     
     # Save it to a new, more descriptive filename for final use
-    final_save_path = os.path.join(model_save_dir, "best_text_time_model_overall.keras")
+    final_save_path = os.path.join(model_save_dir, "best_text_time_model.keras")
     best_model_for_prediction.save(final_save_path)
     print(f"The best model has been saved to: {final_save_path}")
+
+if __name__ == "__main__":
+    train_and_save_text_time_model(dataset_type="original", remove_short_sentences=False)
+    train_and_save_text_time_model(dataset_type="both", remove_short_sentences=False)

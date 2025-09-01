@@ -8,7 +8,7 @@ from sklearn.model_selection import KFold
 from sklearn.utils.class_weight import compute_class_weight
 from utils import pad_sequences_and_times_np, prepare_audio_data
 from weights import Weights
-from config import PROCESSED_DATA_PATH, VOCAB_PATH, WORD2VEC_PATH, MAX_SEQUENCE_LENGTH, AUDIO_FEATURES_CACHE_PATH, LABELS_CACHE_PATH
+from config import PROCESSED_DATA_PATH, VOCAB_PATH, WORD2VEC_PATH, MAX_SEQUENCE_LENGTH
 
 def create_audio_word_model(embedding_layer, max_sequence_length, audio_feature_shape):
     # Audio model branch now accepts pre-computed, flattened audio features
@@ -31,28 +31,42 @@ def create_audio_word_model(embedding_layer, max_sequence_length, audio_feature_
     audio_word_model = Model(inputs=[audio_model.input, word_model.input], outputs=combined_output, name='audio_word_model')
     return audio_word_model
 
-if __name__ == "__main__":
+def train_and_save_audio_text_model(dataset_type, remove_short_sentences):
+    cache_base_name = f"precomputed_{dataset_type}"
+    if remove_short_sentences:
+        cache_base_name += "_no_short"
+    AUDIO_FEATURES_CACHE_PATH = f"{cache_base_name}_audio_features.npy"
+    LABELS_CACHE_PATH = f"{cache_base_name}_labels.npy"
+
     if not os.path.exists(PROCESSED_DATA_PATH):
         raise FileNotFoundError("Processed data not found. Please run the data preparation script first.")
     with open(PROCESSED_DATA_PATH, "rb") as f:
         data_points = pickle.load(f)
 
-    # Check if pre-computed audio features exist
+    # Filter by dataset type and remove short sentences
+    if dataset_type == "original":
+        data_points = [d for d in data_points if d['source_type'] == 'original']
+    elif dataset_type == "augmented":
+        data_points = [d for d in data_points if d['source_type'] == 'text_augmented']
+    if remove_short_sentences:
+        data_points = [d for d in data_points if len(d['words']) >= 5]
+    
     if os.path.exists(AUDIO_FEATURES_CACHE_PATH) and os.path.exists(LABELS_CACHE_PATH):
         all_audios = np.load(AUDIO_FEATURES_CACHE_PATH)
         all_labels = np.load(LABELS_CACHE_PATH)
     else:
-        all_audios, all_labels = prepare_audio_data(data_points)
+        all_audios, all_labels = prepare_audio_data(data_points, AUDIO_FEATURES_CACHE_PATH, LABELS_CACHE_PATH)
+    
     all_words = [d['words'] for d in data_points]
+
     if not os.path.exists(VOCAB_PATH) or not os.path.exists(WORD2VEC_PATH):
         raise FileNotFoundError("Vocab or Word2Vec vectors not found. Please run the build_vocab script first.")
     with open(VOCAB_PATH, "rb") as f:
         vocab = pickle.load(f)
     with open(WORD2VEC_PATH, "rb") as f:
         word2vec_vectors = pickle.load(f)
-    
     word_to_id = {word: i for i, word in enumerate(vocab)}
-    all_word_ids = [[word_to_id.get(w, 0) for w in sentence] for sentence in all_words]
+    all_word_ids = [[word_to_id.get(w, 0) for w in sent] for sent in all_words]
 
     weight = Weights(vocab, word2vec_vectors)
     embedding_vectors = weight.get_weight_matrix()
@@ -65,16 +79,15 @@ if __name__ == "__main__":
                                 trainable=False)
 
     audio_feature_shape = all_audios.shape[1:]
-    # Cross-validation setup
+    fold_number = 1
     kf = KFold(n_splits=5, shuffle=True, random_state=42)
     all_eval_results = []
-    fold_number = 1
     
-    # Create a directory to save the models for each fold
-    model_save_dir = "models"
+    model_save_dir = f"models\{dataset_type}"
+    if remove_short_sentences:
+        model_save_dir += "_no_short"
     os.makedirs(model_save_dir, exist_ok=True)
 
-    # Loop through each of the 5 folds
     for train_val_index, test_index in kf.split(all_audios):
         print(f"\n--- Starting Fold {fold_number}/5 ---")
 
@@ -112,7 +125,7 @@ if __name__ == "__main__":
         callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
 
         # Define the ModelCheckpoint callback for this fold
-        checkpoint_path = os.path.join(model_save_dir, f"audio_word_model_fold_{fold_number}.keras")
+        checkpoint_path = os.path.join(model_save_dir, f"audio_text_model_fold_{fold_number}.keras")
         model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
             filepath=checkpoint_path,
             monitor='val_loss',
@@ -151,10 +164,14 @@ if __name__ == "__main__":
     print(f"The overall best model was found in Fold {best_fold_number}.")
     
     # Load the best-performing model from its saved location
-    best_model_path = os.path.join(model_save_dir, f"audio_word_model_fold_{best_fold_number}.keras")
+    best_model_path = os.path.join(model_save_dir, f"audio_text_model_fold_{best_fold_number}.keras")
     best_model_for_prediction = load_model(best_model_path)
     
     # Save it to a new, more descriptive filename for final use
-    final_save_path = os.path.join(model_save_dir, "best_audio_word_model_overall.keras")
+    final_save_path = os.path.join(model_save_dir, "best_audio_text_model.keras")
     best_model_for_prediction.save(final_save_path)
     print(f"The best model has been saved to: {final_save_path}")
+
+if __name__ == "__main__":
+    train_and_save_audio_text_model(dataset_type="original", remove_short_sentences=False)
+    train_and_save_audio_text_model(dataset_type="both", remove_short_sentences=False)

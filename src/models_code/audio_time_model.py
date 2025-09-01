@@ -7,7 +7,7 @@ from tensorflow.keras.models import Model, load_model
 from sklearn.model_selection import KFold
 from sklearn.utils.class_weight import compute_class_weight
 from utils import pad_sequences_and_times_np, prepare_audio_data
-from config import PROCESSED_DATA_PATH, MAX_SEQUENCE_LENGTH, AUDIO_FEATURES_CACHE_PATH, LABELS_CACHE_PATH
+from config import PROCESSED_DATA_PATH, MAX_SEQUENCE_LENGTH
 
 def create_audio_time_model(max_sequence_length, audio_feature_shape):
     audio_input = Input(shape=audio_feature_shape, dtype=tf.float32, name="audio_input")
@@ -25,29 +25,44 @@ def create_audio_time_model(max_sequence_length, audio_feature_shape):
     audio_time_model = Model(inputs=[audio_model.input, time_model.input], outputs=combined_output, name='audio_time_model')
     return audio_time_model
 
-if __name__ == "__main__":
+def train_and_save_audio_time_model(dataset_type, remove_short_sentences):
+    cache_base_name = f"precomputed_{dataset_type}"
+    if remove_short_sentences:
+        cache_base_name += "_no_short"
+    AUDIO_FEATURES_CACHE_PATH = f"{cache_base_name}_audio_features.npy"
+    LABELS_CACHE_PATH = f"{cache_base_name}_labels.npy"
+    
     if not os.path.exists(PROCESSED_DATA_PATH):
         raise FileNotFoundError("Processed data not found. Please run the data preparation script first.")
     with open(PROCESSED_DATA_PATH, "rb") as f:
         data_points = pickle.load(f)
 
-    # Check if pre-computed audio features exist
+    # Filter data based on the specified type and length
+    if dataset_type == "original":
+        data_points = [d for d in data_points if d['source_type'] == 'original']
+    elif dataset_type == "augmented":
+        data_points = [d for d in data_points if d['source_type'] == 'text_augmented']
+    if remove_short_sentences:
+        data_points = [d for d in data_points if len(d['words']) >= 5]
+
     if os.path.exists(AUDIO_FEATURES_CACHE_PATH) and os.path.exists(LABELS_CACHE_PATH):
         all_audios = np.load(AUDIO_FEATURES_CACHE_PATH)
         all_labels = np.load(LABELS_CACHE_PATH)
     else:
-        all_audios, all_labels = prepare_audio_data(data_points)
+        all_audios, all_labels = prepare_audio_data(data_points, AUDIO_FEATURES_CACHE_PATH, LABELS_CACHE_PATH)
     
-    all_times = [[(d['start'], d['end'])] for d in data_points]
+    all_times = [d['word_times'] for d in data_points] 
     
     audio_feature_shape = all_audios.shape[1:]
 
     # Cross-validation setup
     kf = KFold(n_splits=5, shuffle=True, random_state=42)
-    all_eval_results = []
     fold_number = 1
-
-    model_save_dir = "models"
+    all_eval_results = []
+    
+    model_save_dir = f"models\{dataset_type}"
+    if remove_short_sentences:
+        model_save_dir += "_no_short"
     os.makedirs(model_save_dir, exist_ok=True)
 
     # Loop through each of the 5 folds
@@ -138,6 +153,10 @@ if __name__ == "__main__":
     best_model_for_prediction = load_model(best_model_path)
     
     # Save it to a new, more descriptive filename for final use
-    final_save_path = os.path.join(model_save_dir, "best_audio_time_model_overall.keras")
+    final_save_path = os.path.join(model_save_dir, "best_audio_time_model.keras")
     best_model_for_prediction.save(final_save_path)
     print(f"The best model has been saved to: {final_save_path}")
+
+if __name__ == "__main__":
+    train_and_save_audio_time_model(dataset_type="original", remove_short_sentences=False)
+    train_and_save_audio_time_model(dataset_type="both", remove_short_sentences=False)

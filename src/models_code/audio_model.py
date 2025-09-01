@@ -7,7 +7,7 @@ from tensorflow.keras.models import Model, load_model
 from sklearn.model_selection import KFold
 from sklearn.utils.class_weight import compute_class_weight
 from utils import prepare_audio_data
-from config import PROCESSED_DATA_PATH, FEATURES_CACHE_PATH, LABELS_CACHE_PATH
+from config import PROCESSED_DATA_PATH
 
 def create_audio_model(input_shape):
     input_features = Input(shape=input_shape, dtype=tf.float32, name="audio_input")
@@ -17,17 +17,31 @@ def create_audio_model(input_shape):
     audio_model.summary()
     return audio_model
 
-if __name__ == "__main__":
+def train_and_save_model(dataset_type, remove_short_sentences):
+    cache_base_name = f"precomputed_{dataset_type}"
+    if remove_short_sentences:
+        cache_base_name += "_no_short"
+    FEATURES_CACHE_PATH = f"{cache_base_name}_audio_features.npy"
+    LABELS_CACHE_PATH = f"{cache_base_name}_labels.npy"
+
     if not os.path.exists(PROCESSED_DATA_PATH):
         raise FileNotFoundError("Processed data not found. Please run the data preparation script first.")
     with open(PROCESSED_DATA_PATH, "rb") as f:
         data_points = pickle.load(f)
 
+    # Filter data based on the chosen dataset_type
+    if dataset_type == "original":
+        data_points = [d for d in data_points if d['source_type'] == 'original']
+    elif dataset_type == "augmented":
+        data_points = [d for d in data_points if d['source_type'] == 'text_augmented']
+    if remove_short_sentences:
+        data_points = [d for d in data_points if len(d['words']) >= 5]
+
     if os.path.exists(FEATURES_CACHE_PATH) and os.path.exists(LABELS_CACHE_PATH):
         all_audios = np.load(FEATURES_CACHE_PATH)
         all_labels = np.load(LABELS_CACHE_PATH)
     else:
-        all_audios, all_labels = prepare_audio_data(data_points)
+        all_audios, all_labels = prepare_audio_data(data_points, FEATURES_CACHE_PATH, LABELS_CACHE_PATH)
 
     # Get the input shape for the model from the pre-computed features
     input_shape = all_audios.shape[1:]
@@ -37,8 +51,9 @@ if __name__ == "__main__":
     all_eval_results = []
     fold_number = 1
     
-    # Create the models directory if it doesn't exist
-    model_save_dir = "models"
+    model_save_dir = f"models\{dataset_type}"
+    if remove_short_sentences:
+        model_save_dir += "_no_short"
     os.makedirs(model_save_dir, exist_ok=True)
 
     # Loop through each of the 5 folds
@@ -114,6 +129,9 @@ if __name__ == "__main__":
     best_model_path = os.path.join(model_save_dir, f"audio_model_fold_{best_fold_number}.keras")
     best_model_for_prediction = load_model(best_model_path)
     
-    final_save_path = os.path.join(model_save_dir, "best_model_audio_overall.keras")
+    final_save_path = os.path.join(model_save_dir, f"best_audio_model.keras")
     best_model_for_prediction.save(final_save_path)
     print(f"The best model has been saved to: {final_save_path}")
+if __name__ == "__main__":
+    train_and_save_model(dataset_type="original", remove_short_sentences=False)
+    train_and_save_model(dataset_type="both", remove_short_sentences=False)
