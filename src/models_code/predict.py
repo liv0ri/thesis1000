@@ -6,6 +6,9 @@ from wav2vec_feature_extractor import Wav2VecFeatureExtractor
 from utils import pad_sequences_and_times_np
 import pickle
 from config import VOCAB_PATH, MAX_SEQUENCE_LENGTH
+MODEL_PATH_ORIGINAL = "models\original"
+both = "both"
+MODEL_PATH_BOTH = f"models\{both}"
 
 if __name__ == "__main__":
     if not os.path.exists(VOCAB_PATH):
@@ -45,7 +48,9 @@ if __name__ == "__main__":
     audio_features_pooled = pooling_layer(audio_features).numpy()
 
     # Load the saved model.
-    loaded_audio_word_model = load_model(os.path.join("models", "best_audio_word_model_overall.keras"))
+    # loaded_audio_word_model = load_model(os.path.join(MODEL_PATH_ORIGINAL, "best_audio_text_model.keras"))
+    loaded_audio_word_model = load_model(os.path.join(MODEL_PATH_BOTH, "best_audio_text_model.keras"))
+
     
     # Make a prediction by passing the inputs as a list.
     prediction = loaded_audio_word_model.predict([audio_features_pooled, word_ids_padded])
@@ -61,7 +66,8 @@ if __name__ == "__main__":
     # AUDIO MODEL PREDICTION
     # ======================
     print("\n--- Audio-Only Model Prediction Start ---")
-    loaded_audio_model = load_model(os.path.join("models", "best_model_audio_overall.keras"))
+    # loaded_audio_model = load_model(os.path.join(MODEL_PATH_ORIGINAL, "best_audio_model.keras"))
+    loaded_audio_model = load_model(os.path.join(MODEL_PATH_BOTH, "best_audio_model.keras"))
     prediction = loaded_audio_model.predict(audio_features_pooled)
     predicted_class = (prediction > 0.5).astype(int)
     print("\n--- Audio-Only Model Prediction Results ---")
@@ -74,7 +80,8 @@ if __name__ == "__main__":
     print("\n--- Word-Time Model Prediction Start ---")
     word_time_new = np.random.randint(1, len(vocab) + 1, size=(1, MAX_SEQUENCE_LENGTH))
     time_new = np.random.randn(1, MAX_SEQUENCE_LENGTH, 2).astype(np.float32)
-    loaded_word_time_model = load_model(os.path.join("models", "best_text_time_model_overall.keras"))
+    # loaded_word_time_model = load_model(os.path.join(MODEL_PATH_ORIGINAL, "best_text_time_model.keras"))
+    loaded_word_time_model = load_model(os.path.join(MODEL_PATH_BOTH, "best_text_time_model.keras"))
     prediction = loaded_word_time_model.predict([word_time_new, time_new])
     predicted_class = (prediction > 0.5).astype(int)
     print("\n--- Word-Time Model Prediction Results ---")
@@ -84,7 +91,8 @@ if __name__ == "__main__":
     # ======================
     # TEXT MODEL PREDICTION
     # ======================
-    loaded_text_model = load_model(os.path.join("models", "best_text_model_overall.keras"))
+    # loaded_text_model = load_model(os.path.join(MODEL_PATH_ORIGINAL, "best_text_model.keras"))
+    loaded_text_model = load_model(os.path.join(MODEL_PATH_BOTH, "best_text_model.keras"))
     prediction_prob = loaded_text_model.predict(word_ids_padded)
     predicted_class = (prediction_prob > 0.5).astype(int)
     print("\n--- Text-Only Model Prediction Results ---")
@@ -94,7 +102,8 @@ if __name__ == "__main__":
     # ======================
     # AUDIO TIME MODEL PREDICTION
     # ======================
-    loaded_audio_time_model = load_model(os.path.join("models", "best_audio_time_model_overall.keras"))
+    # loaded_audio_time_model = load_model(os.path.join(MODEL_PATH_ORIGINAL, "best_audio_time_model.keras"))
+    loaded_audio_time_model = load_model(os.path.join(MODEL_PATH_BOTH, "best_audio_time_model.keras"))
     prediction = loaded_audio_time_model.predict([audio_features_pooled, time_new])
     predicted_class = (prediction > 0.5).astype(int)
     print("\n--- Audio-Time Model Prediction Results ---")
@@ -104,7 +113,8 @@ if __name__ == "__main__":
     # ======================
     # COMBINED MODEL PREDICTION
     # ======================
-    loaded_combined_model = load_model(os.path.join("models", "best_model_audio_text_time.keras"))
+    # loaded_combined_model = load_model(os.path.join(MODEL_PATH_ORIGINAL, "best_audio_text_time_model.keras"))
+    loaded_combined_model = load_model(os.path.join(MODEL_PATH_BOTH, "best_audio_text_time_model.keras"))
     prediction = loaded_combined_model.predict([audio_features_pooled, word_ids_padded, time_new])
     predicted_class = (prediction > 0.5).astype(int)
     print("\n--- Combined Model Prediction Results ---")
