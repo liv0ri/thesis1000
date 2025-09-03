@@ -5,7 +5,6 @@ from wav2vec_feature_extractor import Wav2VecFeatureExtractor
 from config import FEATURE_EXTRACTION_BATCH_SIZE
 
 def pad_sequences_and_times_np(word_sequences=None, time_sequences=None, maxlen=100):
-    """Pads word and time sequences to a fixed length."""
     num_samples = len(word_sequences) if word_sequences is not None else len(time_sequences)
     padded_words_np = np.zeros((num_samples, maxlen), dtype="int32")
     if word_sequences is not None:

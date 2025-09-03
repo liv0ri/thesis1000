@@ -73,6 +73,7 @@ class DementiaPredictor:
 
 if __name__ == "__main__":
     predictor = DementiaPredictor()
+    predictor_orig = DementiaPredictor("models/original")
 
     # Dummy data
     audio_raw = np.random.randn(1, 16000).astype(np.float32)
@@ -85,3 +86,10 @@ if __name__ == "__main__":
     print("Text + Time:", predictor.predict_text_time(word_ids_raw, time_raw))
     print("Audio + Time:", predictor.predict_audio_time(audio_raw, time_raw))
     print("All combined:", predictor.predict_combined(audio_raw, word_ids_raw, time_raw))
+
+    print("Original Audio only:", predictor_orig.predict_audio(audio_raw))
+    print("Original Text only:", predictor_orig.predict_text(word_ids_raw))
+    print("Original Audio + Text:", predictor_orig.predict_audio_text(audio_raw, word_ids_raw))
+    print("Original Text + Time:", predictor_orig.predict_text_time(word_ids_raw, time_raw))
+    print("Original Audio + Time:", predictor_orig.predict_audio_time(audio_raw, time_raw))
+    print("Original All combined:", predictor_orig.predict_combined(audio_raw, word_ids_raw, time_raw))

@@ -158,5 +158,5 @@ def train_and_save_audio_time_model(dataset_type, remove_short_sentences):
     print(f"The best model has been saved to: {final_save_path}")
 
 if __name__ == "__main__":
-    train_and_save_audio_time_model(dataset_type="original", remove_short_sentences=False)
+    # train_and_save_audio_time_model(dataset_type="original", remove_short_sentences=False)
     train_and_save_audio_time_model(dataset_type="both", remove_short_sentences=False)
