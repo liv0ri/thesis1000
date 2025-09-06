@@ -133,5 +133,5 @@ def train_and_save_model(dataset_type, remove_short_sentences):
     best_model_for_prediction.save(final_save_path)
     print(f"The best model has been saved to: {final_save_path}")
 if __name__ == "__main__":
-    # train_and_save_model(dataset_type="original", remove_short_sentences=False)
-    train_and_save_model(dataset_type="both", remove_short_sentences=False)
+    train_and_save_model(dataset_type="original", remove_short_sentences=False)
+    # train_and_save_model(dataset_type="both", remove_short_sentences=False)

@@ -6,7 +6,12 @@ from random import shuffle
 import soundfile as sf
 import warnings
 import random
+import nltk
+from nltk.corpus import wordnet as wn
+from wordfreq import zipf_frequency
 from config import INPUT_BASE_PATH, PROCESSED_DATA_PATH, TARGET_AUDIO_LENGTH
+
+# nltk.download('wordnet')
 
 INPUT_FOLDERS = {
     "control": os.path.join(INPUT_BASE_PATH, "cha_files", "control"),
@@ -18,13 +23,42 @@ AUDIO_FOLDERS = {
     "dementia": os.path.join(INPUT_BASE_PATH, "wav", "dementia"),
 }
 
-SYNONYM_DICT = {
-    "dementia": ["alzheimer's"],
-    "talk": ["speak", "discuss"],
-    "say": ["speak", "tell"],
-    "get": ["obtain", "acquire"],
+# Manual seeds (safe words you trust)
+SEED_SYNONYM_DICT = {
+    "get": ["obtain", "buy", "acquire"],
+    "say": ["tell", "speak"],
+    "talk": ["speak", "chat", "discuss"],
     "take": ["grab", "seize"],
+    "help": ["assist", "aid"],
+    "find": ["discover", "locate"],
+    "start": ["begin", "commence"],
+    "make": ["create", "build"],
+    "go": ["move", "travel"],
 }
+
+def get_wordnet_synonyms(word, max_synonyms=5):
+    synonyms = set()
+    for syn in wn.synsets(word):
+        for lemma in syn.lemmas():
+            synonym = lemma.name().replace("_", " ")
+            if synonym.lower() != word.lower():
+                synonyms.add(synonym.lower())
+    return list(synonyms)[:max_synonyms]
+
+def filter_common_words(words, min_freq=3.0):
+    return [w for w in words if zipf_frequency(w, "en") >= min_freq and w.isalpha()]
+
+def build_hybrid_synonym_dict(seed_dict, expand=True, max_synonyms=5, min_freq=3.0):
+    hybrid_dict = {}
+    for word, manual_syns in seed_dict.items():
+        synonyms = set(manual_syns)
+        if expand:
+            wn_syns = get_wordnet_synonyms(word, max_synonyms=max_synonyms)
+            synonyms.update(wn_syns)
+        filtered_syns = filter_common_words(list(synonyms), min_freq=min_freq)
+        if filtered_syns:
+            hybrid_dict[word] = filtered_syns
+    return hybrid_dict
 
 def approximate_word_times(words, utt_start_ms, utt_end_ms):
     duration = utt_end_ms - utt_start_ms  # in ms
@@ -46,7 +80,6 @@ def augment_text(words, replace_probability=0.1):
         else:
             augmented_words.append(word)
     return augmented_words
-
 
 def extract_utterances(cha_path, label):
     reader = pylangacq.read_chat(cha_path)
@@ -75,7 +108,6 @@ def extract_utterances(cha_path, label):
             "source_file": os.path.basename(cha_path)
         })
     return data_points
-
 
 def load_and_save_data(input_folders, audio_folders, output_path, target_length=TARGET_AUDIO_LENGTH):
     all_data_points = []
@@ -139,4 +171,5 @@ def load_and_save_data(input_folders, audio_folders, output_path, target_length=
         pickle.dump(all_data_points, f)
 
 if __name__ == "__main__":
+    SYNONYM_DICT = build_hybrid_synonym_dict(SEED_SYNONYM_DICT, expand=True, max_synonyms=8, min_freq=3.5)
     load_and_save_data(INPUT_FOLDERS, AUDIO_FOLDERS, PROCESSED_DATA_PATH)
