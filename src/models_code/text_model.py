@@ -63,7 +63,6 @@ def train_and_save_text_model(dataset_type, remove_short_sentences):
     embedding_layer = Embedding(input_dim=len(vocab) + 1,
                                 output_dim=embedding_dim, 
                                 weights=[embedding_vectors],
-                                input_length=MAX_SEQUENCE_LENGTH,
                                 trainable=False)
 
 
