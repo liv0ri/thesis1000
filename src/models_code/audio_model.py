@@ -4,9 +4,9 @@ import os
 import pickle
 from tensorflow.keras.layers import Input, Dense, Dropout
 from tensorflow.keras.models import Model, load_model
-from sklearn.model_selection import KFold
 from sklearn.utils.class_weight import compute_class_weight
 from utils import prepare_audio_data
+from sklearn.model_selection import StratifiedKFold, train_test_split
 from config import PROCESSED_DATA_PATH
 
 def create_audio_model(input_shape):
@@ -47,7 +47,7 @@ def train_and_save_model(dataset_type, remove_short_sentences):
     input_shape = all_audios.shape[1:]
 
     # Cross-validation setup
-    kf = KFold(n_splits=5, shuffle=True, random_state=42)
+    kf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
     all_eval_results = []
     fold_number = 1
     
@@ -57,22 +57,30 @@ def train_and_save_model(dataset_type, remove_short_sentences):
     os.makedirs(model_save_dir, exist_ok=True)
 
     # Loop through each of the 5 folds
-    for train_val_index, test_index in kf.split(all_audios):
+    for train_val_index, test_index in kf.split(all_audios, all_labels):
         print(f"\n--- Starting Fold {fold_number}/5 ---")
 
         # Create train/val/test splits for this fold
         audio_train_val = all_audios[train_val_index]
         y_train_val = all_labels[train_val_index]
 
+        audio_train, audio_val, y_train, y_val = train_test_split(
+            audio_train_val,
+            y_train_val,
+            test_size=0.2,
+            stratify=y_train_val,
+            random_state=42
+        )
+
         audio_test = all_audios[test_index]
         y_test = all_labels[test_index]
 
-        train_size = int(len(audio_train_val) * 0.8)
-        audio_train = audio_train_val[:train_size]
-        y_train = y_train_val[:train_size]
-        audio_val = audio_train_val[train_size:]
-        y_val = y_train_val[train_size:]
-        
+        audio_mean = audio_train.mean(axis=0)
+        audio_std = audio_train.std(axis=0)
+        audio_train = (audio_train - audio_mean) / (audio_std + 1e-8)
+        audio_val = (audio_val - audio_mean) / (audio_std + 1e-8)
+        audio_test = (audio_test - audio_mean) / (audio_std + 1e-8)
+
         # Re-initialize and compile a new model for each fold
         model = create_audio_model(input_shape)
         model.compile(loss='binary_crossentropy',
@@ -134,4 +142,4 @@ def train_and_save_model(dataset_type, remove_short_sentences):
     print(f"The best model has been saved to: {final_save_path}")
 if __name__ == "__main__":
     train_and_save_model(dataset_type="original", remove_short_sentences=False)
-    # train_and_save_model(dataset_type="both", remove_short_sentences=False)
+    train_and_save_model(dataset_type="both", remove_short_sentences=False)
