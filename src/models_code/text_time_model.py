@@ -4,7 +4,7 @@ import os
 import pickle
 from tensorflow.keras.layers import Input, Embedding, Concatenate, LSTM, Dense
 from tensorflow.keras.models import Model, load_model
-from sklearn.model_selection import KFold
+from sklearn.model_selection import StratifiedKFold, train_test_split
 from sklearn.utils.class_weight import compute_class_weight
 from utils import pad_sequences_and_times_np
 from weights import Weights
@@ -71,7 +71,7 @@ def train_and_save_text_time_model(dataset_type, remove_short_sentences):
                                 trainable=False)
 
     # Cross-validation setup
-    kf = KFold(n_splits=5, shuffle=True, random_state=42)
+    kf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
     all_eval_results = []
     fold_number = 1
     
@@ -81,7 +81,7 @@ def train_and_save_text_time_model(dataset_type, remove_short_sentences):
     os.makedirs(model_save_dir, exist_ok=True)
 
     # Loop through each of the 5 folds
-    for train_val_index, test_index in kf.split(all_word_ids):
+    for train_val_index, test_index in kf.split(all_word_ids, all_labels):
         print(f"\n--- Starting Fold {fold_number}/5 ---")
 
         # Create train/val/test splits for this fold
@@ -93,13 +93,14 @@ def train_and_save_text_time_model(dataset_type, remove_short_sentences):
         time_test = [all_times[i] for i in test_index]
         y_test = all_labels[test_index]
         
-        train_size = int(len(word_train_val) * 0.8)
-        word_train = word_train_val[:train_size]
-        time_train = time_train_val[:train_size]
-        y_train = y_train_val[:train_size]
-        word_val = word_train_val[train_size:]
-        time_val = time_train_val[train_size:]
-        y_val = y_train_val[train_size:]
+        word_train, word_val, time_train, time_val, y_train, y_val = train_test_split(
+            word_train_val,
+            time_train_val,
+            y_train_val,
+            test_size=0.2,
+            stratify=y_train_val,
+            random_state=42
+        )
         
         # Pad the sequences
         word_train_padded, time_train_padded = pad_sequences_and_times_np(word_train, time_train, MAX_SEQUENCE_LENGTH)
@@ -162,10 +163,13 @@ def train_and_save_text_time_model(dataset_type, remove_short_sentences):
     print(f"AUC: {avg_results[4]:.4f} ± {std_results[4]:.4f}")
 
     eval_results_array = np.array(all_eval_results)
-    best_accuracy_index = np.argmax(eval_results_array[:, 1])
-    best_fold_number = best_accuracy_index + 1
     
-    print(f"The overall best model was found in Fold {best_fold_number}.")
+    # With AUC-based selection:
+    auc_results = eval_results_array[:, 4]  # AUC is at index 4 in your metrics
+    best_auc_index = np.argmax(auc_results)
+    best_fold_number = best_auc_index + 1
+
+    print(f"The best model was found in Fold {best_fold_number} with an AUC of {auc_results[best_auc_index]:.4f}")
     
     # Load the best-performing model from its saved location
     best_model_path = os.path.join(model_save_dir, f"text_time_model_fold_{best_fold_number}.keras")

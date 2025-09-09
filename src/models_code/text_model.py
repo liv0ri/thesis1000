@@ -4,7 +4,7 @@ import tensorflow as tf
 import pickle
 from tensorflow.keras.layers import Input, Embedding, LSTM, Dense
 from tensorflow.keras.models import Model, load_model
-from sklearn.model_selection import KFold
+from sklearn.model_selection import StratifiedKFold, train_test_split
 from sklearn.utils.class_weight import compute_class_weight
 from weights import Weights
 from utils import pad_sequences_and_times_np
@@ -68,7 +68,7 @@ def train_and_save_text_model(dataset_type, remove_short_sentences):
 
 
     fold_number = 1
-    kf = KFold(n_splits=5, shuffle=True, random_state=42)
+    kf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
     all_eval_results = []
 
     # Create a directory to save the trained models for each fold.
@@ -77,7 +77,7 @@ def train_and_save_text_model(dataset_type, remove_short_sentences):
         model_save_dir += "_no_short"
     os.makedirs(model_save_dir, exist_ok=True)
 
-    for train_val_index, test_index in kf.split(all_word_ids):
+    for train_val_index, test_index in kf.split(all_word_ids, all_labels):
         print(f"\n--- Starting Fold {fold_number}/5 ---")
 
         # Create train/val/test splits for this fold
@@ -87,11 +87,13 @@ def train_and_save_text_model(dataset_type, remove_short_sentences):
         word_test = [all_word_ids[i] for i in test_index]
         y_test = all_labels[test_index]
         
-        train_size = int(len(word_train_val) * 0.8)
-        word_train = word_train_val[:train_size]
-        y_train = y_train_val[:train_size]
-        word_val = word_train_val[train_size:]
-        y_val = y_train_val[train_size:]
+        word_train, word_val, y_train, y_val = train_test_split(
+            word_train_val,
+            y_train_val,
+            test_size=0.2,
+            stratify=y_train_val,
+            random_state=42
+        )
         
         # Now, pad the sequences with the integer indices
         word_train_padded, _ = pad_sequences_and_times_np(word_train, None, MAX_SEQUENCE_LENGTH)
@@ -144,11 +146,13 @@ def train_and_save_text_model(dataset_type, remove_short_sentences):
 
     # Find and save the single best model overall
     eval_results_array = np.array(all_eval_results)
-    best_accuracy_index = np.argmax(eval_results_array[:, 1])
-    best_fold_number = best_accuracy_index + 1
-    
-    print(f"The overall best model was found in Fold {best_fold_number}.")
-    
+    # With AUC-based selection:
+    auc_results = eval_results_array[:, 4]  # AUC is at index 4 in your metrics
+    best_auc_index = np.argmax(auc_results)
+    best_fold_number = best_auc_index + 1
+
+    print(f"The best model was found in Fold {best_fold_number} with an AUC of {auc_results[best_auc_index]:.4f}")
+        
     # Load the best-performing model from its saved location
     best_model_path = os.path.join(model_save_dir, f"text_model_fold_{best_fold_number}.keras")
     best_model_for_prediction = load_model(best_model_path)

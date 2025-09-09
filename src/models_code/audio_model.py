@@ -128,10 +128,11 @@ def train_and_save_model(dataset_type, remove_short_sentences):
     print(f"Recall: {avg_results[3]:.4f} ± {std_results[3]:.4f}")
     print(f"AUC: {avg_results[4]:.4f} ± {std_results[4]:.4f}")
     eval_results_array = np.array(all_eval_results)
-    best_accuracy_index = np.argmax(eval_results_array[:, 1])
-    best_fold_number = best_accuracy_index + 1
-    
-    print(f"The overall best model was found in Fold {best_fold_number}.")
+    auc_results = eval_results_array[:, 4]  # AUC is at index 4 in your metrics
+    best_auc_index = np.argmax(auc_results)
+    best_fold_number = best_auc_index + 1
+
+    print(f"The best model was found in Fold {best_fold_number} with an AUC of {auc_results[best_auc_index]:.4f}")
     
     # Load the best-performing model from its saved location
     best_model_path = os.path.join(model_save_dir, f"audio_model_fold_{best_fold_number}.keras")

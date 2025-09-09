@@ -4,7 +4,7 @@ import os
 import pickle
 from tensorflow.keras.layers import Input, Embedding, Concatenate, LSTM, Dense, Dropout
 from tensorflow.keras.models import Model, load_model
-from sklearn.model_selection import KFold
+from sklearn.model_selection import StratifiedKFold, train_test_split
 from sklearn.utils.class_weight import compute_class_weight
 from utils import pad_sequences_and_times_np, prepare_audio_data
 from weights import Weights
@@ -90,7 +90,7 @@ def train_and_save_multimodal_model(dataset_type, remove_short_sentences):
     audio_feature_shape = all_audios.shape[1:]
 
     # Cross-validation setup
-    kf = KFold(n_splits=5, shuffle=True, random_state=42)
+    kf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
     fold_number = 1
     all_eval_results = []
 
@@ -99,7 +99,7 @@ def train_and_save_multimodal_model(dataset_type, remove_short_sentences):
         model_save_dir += "_no_short"
     os.makedirs(model_save_dir, exist_ok=True)
 
-    for train_val_index, test_index in kf.split(all_word_ids):
+    for train_val_index, test_index in kf.split(all_word_ids, all_labels):
         print(f"\n--- Starting Fold {fold_number}/5 ---")
 
         # Create train/val/test splits for this fold
@@ -113,15 +113,21 @@ def train_and_save_multimodal_model(dataset_type, remove_short_sentences):
         time_test = [all_times[i] for i in test_index]
         y_test = all_labels[test_index]
 
-        train_size = int(len(word_train_val) * 0.8)
-        audio_train = audio_train_val[:train_size]
-        word_train = word_train_val[:train_size]
-        time_train = time_train_val[:train_size]
-        y_train = y_train_val[:train_size]
-        audio_val = audio_train_val[train_size:]
-        word_val = word_train_val[train_size:]
-        time_val = time_train_val[train_size:]
-        y_val = y_train_val[train_size:]
+        audio_train, audio_val, word_train, word_val, time_train, time_val, y_train, y_val = train_test_split(
+            audio_train_val,
+            word_train_val,
+            time_train_val,
+            y_train_val,
+            test_size=0.2,
+            stratify=y_train_val,
+            random_state=42
+        )
+
+        audio_mean = audio_train.mean(axis=0)
+        audio_std = audio_train.std(axis=0)
+        audio_train = (audio_train - audio_mean) / (audio_std + 1e-8)
+        audio_val = (audio_val - audio_mean) / (audio_std + 1e-8)
+        audio_test = (audio_test - audio_mean) / (audio_std + 1e-8)
         
         # Pad the sequences
         word_train_padded, time_train_padded = pad_sequences_and_times_np(word_train, time_train, MAX_SEQUENCE_LENGTH)
@@ -184,17 +190,11 @@ def train_and_save_multimodal_model(dataset_type, remove_short_sentences):
 
     eval_results_array = np.array(all_eval_results)
 
-    # The accuracy metric is at index 1 in the evaluation results list
-    accuracy_results = eval_results_array[:, 1]
-
-    # Find the index of the fold with the highest accuracy
-    best_accuracy_index = np.argmax(accuracy_results)
-
-    # The fold number is the index plus 1
-    best_fold_number = best_accuracy_index + 1
-
-    print(f"The best model was found in Fold {best_fold_number} with an accuracy of {accuracy_results[best_accuracy_index]:.4f}")
-
+    auc_results = eval_results_array[:, 4]  # AUC is at index 4 in your metrics
+    best_auc_index = np.argmax(auc_results)
+    best_fold_number = best_auc_index + 1
+    
+    print(f"The best model was found in Fold {best_fold_number} with an AUC of {auc_results[best_auc_index]:.4f}")
     # Construct the file path for the best model
     best_model_path = os.path.join(model_save_dir, f"audio_text_time_model_fold_{best_fold_number}.keras")
 
