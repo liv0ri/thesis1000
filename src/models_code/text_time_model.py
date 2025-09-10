@@ -49,7 +49,6 @@ def train_and_save_text_time_model(dataset_type, remove_short_sentences):
     all_words = [d['words'] for d in data_points]
     # Correctly extract the word_times field, which contains timestamps for each word.
     all_times = [d['word_times'] for d in data_points]
-    all_labels = np.array([1 if d['label'] == 'dementia' else 0 for d in data_points])
 
     if not os.path.exists(VOCAB_PATH) or not os.path.exists(WORD2VEC_PATH):
         raise FileNotFoundError("Vocab or Word2Vec vectors not found. Please run the build_vocab script first.")
